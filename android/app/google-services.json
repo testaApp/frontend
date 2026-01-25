@@ -1,0 +1,29 @@
+{
+    "project_info": {
+      "project_number": "463154637082",
+      "project_id": "testa-app-firebase",
+      "storage_bucket": "testa-app-firebase.firebasestorage.app"
+    },
+    "client": [
+      {
+        "client_info": {
+          "mobilesdk_app_id": "1:463154637082:android:83d80ac9e0d3b17b91e4a3",
+          "android_client_info": {
+            "package_name": "et.testa.frontend"
+          }
+        },
+        "oauth_client": [],
+        "api_key": [
+          {
+            "current_key": "AIzaSyAi5LdxU8-ssnMNv3HttabjFEL90KlHMRQ"
+          }
+        ],
+        "services": {
+          "appinvite_service": {
+            "other_platform_oauth_client": []
+          }
+        }
+      }
+    ],
+    "configuration_version": "1"
+  }

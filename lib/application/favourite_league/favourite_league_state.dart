@@ -1,0 +1,3 @@
+class FavouriteLeagueState {
+  FavouriteLeagueState();
+}

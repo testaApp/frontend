@@ -1,0 +1,39 @@
+class RouteNames {
+  static String news = 'news';
+
+  static String playerProfile = 'profile';
+  static String playerProfilbyName = 'profile';
+  static String teamProfilePage = 'teamProfilePage';
+  static String enadamt = 'enadamt';
+  static String chooselanguage = 'language';
+  static String payment = 'payment';
+  static String home = 'home';
+  static String podcastFav = 'podcastFav';
+  static String transfer = 'transfer'; // Ensure this line exists
+  static String settings = 'settings'; // Ensure this line exists
+  static String uploadProfilePic = 'upload-profile-pic';
+  static String newsDetail = 'newsDetail';
+  static String language = 'language';
+  static String login = 'login';
+  static String passcode = 'passcode';
+  static String favoriteLeague = 'favLeague';
+  static String IntroductionPage = 'IntroductionPage';
+  static String favouriteTeam_entry = 'favteam_entry';
+  static String favouritePlayer_entry = 'favplayer_entry';
+  static String webview = 'webview';
+  static String gittrial = 'trial';
+  static String audioPlayer = 'audioPlayer';
+  static String findMore = 'findMore';
+  static String playerStat = 'playerStat';
+  static String teamsStat = 'teamsStat';
+  static String highlights = 'highlights';
+  static String highlightPage = 'highlightPage';
+  static String youtubePlayerPage = 'youtubePlayerPage';
+  static String chooseLeague = 'chooseLeague';
+  static String notificationSettings = 'notificationSettings';
+  static String matchDetail = 'matchDetail';
+  static String videointro = 'videointro';
+  static String paymentRouteName = 'paymentwebview';
+  static String entrypage = 'entrypage';
+  static String detailnews = 'detailnews';
+}

@@ -1,0 +1,39 @@
+  # rules: 
+  #   prefer_const_constructors : false
+  #   file_names : false
+  #   public_member_api_docs: false
+  #   lines_longer_than_80_chars: false
+  #   avoid_catches_without_on_clauses: false
+  #   avoid_equals_and_hash_code_on_mutable_classes: false
+  #   prefer_relative_imports: false
+  #   type_annotate_public_apis: false
+  #   avoid_types_on_closure_parameters: false
+  #   sort_constructors_first: false
+  #   prefer_generic_function_type_aliases: true
+  #   unnecessary_lambdas: true
+  #   use_key_in_widget_constructors: false
+  #   avoid_print: false
+analyzer:
+  errors:
+    directives_ordering: ignore
+include: package:flutter_lints/flutter.yaml
+
+linter:
+  rules:
+    avoid_unused_constructor_parameters: true 
+    avoid_unused_local_variables: true
+    dead_code: true
+    avoid_types_on_closure_parameters: true
+    avoid_void_async: true
+    cancel_subscriptions: true
+    close_sinks: true
+    directives_ordering: true
+    package_api_docs: true
+    package_prefixed_library_names: true
+    prefer_relative_imports: true
+    prefer_single_quotes: true
+    test_types_in_equals: true
+    throw_in_finally: true
+    unawaited_futures: true
+    unnecessary_statements: true
+    use_super_parameters: true

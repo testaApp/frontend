@@ -1,0 +1,17 @@
+{
+  "news": "ዜና",
+  "name": "ስም",
+  "country": "አገር" ,
+   "news":"news",
+   "recent_news" : "ሓድሽ ዜና",
+  "for_you" : "ንዓኻ",
+  "whats_new" : "መን እንታይ ኢሉ?",
+  "transfer" : "ምምሕልላፍ",
+  "trending_news" : "ብብዙሓት ተነቢቡ",
+  "news" : "ዜና",
+  "leagues" : "ሊግ",
+  "games" : "ጸወታ",
+  "favourite" : "ምርጫይ",
+  "listen" : "ንሰምዕ"
+
+}
