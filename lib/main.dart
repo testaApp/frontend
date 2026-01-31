@@ -1,11 +1,14 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:app_links/app_links.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -40,11 +43,9 @@ import 'bloc/highlightTv_bloc/highlightTv_Event.dart';
 import 'bloc/highlightTv_bloc/highlightTv_bloc.dart';
 import 'bloc/knockout/Knockout_bloc.dart';
 import 'bloc/leagues_page/top_assist/top_assist_bloc.dart';
-
 import 'bloc/leagues_page/top_scorer/top_scorers_bloc.dart';
 import 'bloc/leagues_page/top_yellow_card/top_yellow_bloc.dart';
 import 'bloc/leagues_page/top_red/top_red_bloc.dart';
-
 import 'bloc/lineups/lineups_bloc.dart';
 import 'bloc/live-tv-player_bloc-state-event/video_player_bloc.dart';
 import 'bloc/live_tv/live_tv_bloc.dart';
@@ -68,6 +69,7 @@ import 'bloc/video/video_bloc.dart';
 import 'components/routes.dart';
 import 'domain/product/productRepository.dart';
 import 'pages/appbar_pages/enadamt/audio_handler_new.dart';
+import 'pages/entry_pages/functions.dart';
 import 'pages/navigation/quiz/quiz_repository.dart';
 import 'services/fcm_service.dart';
 import 'services/service_locator.dart';
@@ -78,15 +80,31 @@ import 'util/auth/tokens.dart';
 import 'util/baseUrl.dart';
 import 'util/notifiers/username_notifier.dart';
 
+final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+    FlutterLocalNotificationsPlugin();
+
+// ────────────────────────────────────────────────
+// Global pending deep link (for cold start reliability)
+// ────────────────────────────────────────────────
+Uri? _pendingDeepLink;
+
+void setPendingDeepLink(Uri? uri) {
+  _pendingDeepLink = uri;
+}
+
 Future<void> deleteLogin() async {
-  SharedPreferences prefs = await SharedPreferences.getInstance();
+  final prefs = await SharedPreferences.getInstance();
+  final currentLang = localLanguageNotifier.value;
+
+  await FCMTopicManager.cleanupOnLogout(currentLang);
   await prefs.clear();
   await clearTokens();
+
+  debugPrint('User logged out → all FCM topics cleaned up');
 }
 
 Future<void> fetchLocalizationValues(String languageCode) async {
   final box1 = await Hive.openBox<LocalizationData>('localization');
-
   final url = BaseUrl().url;
   final response = await http.get(
     Uri.parse('$url/api/localization?languageCode=$languageCode'),
@@ -97,34 +115,56 @@ Future<void> fetchLocalizationValues(String languageCode) async {
     final Map<String, String> localizedValues =
         data.map((key, value) => MapEntry(key, value.toString()));
 
-    // Store the localized values in the Hive box
     for (final entry in localizedValues.entries) {
       final localizationData =
           LocalizationData(key: entry.key, value: entry.value);
       await box1.put('$languageCode-${entry.key}', localizationData);
     }
-  } else {
-    // Handle error
   }
+}
+
+Future<void> preloadLocalizations() async {
+  await Future.wait([
+    fetchLocalizationValues('am'),
+    fetchLocalizationValues('en'),
+    fetchLocalizationValues('tr'),
+    fetchLocalizationValues('so'),
+    fetchLocalizationValues('or'),
+  ]);
+}
+
+Future<void> initializeLocalNotifications() async {
+  const AndroidInitializationSettings androidSettings =
+      AndroidInitializationSettings('testaapp');
+
+  const InitializationSettings settings =
+      InitializationSettings(android: androidSettings);
+
+  await flutterLocalNotificationsPlugin.initialize(settings);
+}
+
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp();
+  debugPrint('🔔 Background message received → ${message.messageId}');
+  debugPrint('   Type: ${message.data['type']}');
 }
 
 late GoRouter globalRouter;
 ValueNotifier<String> localLanguageNotifier = ValueNotifier('am');
+
 Future<void> main() async {
   HttpOverrides.global = MyHttpOverrides();
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
-  await FCMService().initialize(); // Basic setup only
 
-// For returning users: quietly register if setup done
-  final prefs = await SharedPreferences.getInstance();
-  if (prefs.getBool('setup_done') ?? false) {
-    await FCMService().requestPermissionAndRegisterToken();
-  }
-  // Initialize service locator first (without audio handler)
+  await initializeLocalNotifications();
+  await Firebase.initializeApp();
+
+  await FCMService().initialize();
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
   await setupServiceLocator();
 
-  // Then initialize audio service
   final audioHandler = await AudioService.init(
     builder: () => MyAudioHandler(),
     config: const AudioServiceConfig(
@@ -135,22 +175,17 @@ Future<void> main() async {
       preloadArtwork: true,
     ),
   );
-
-  // Register audio handler in service locator
   getIt.registerSingleton<AudioHandler>(audioHandler);
 
-  await SystemChrome.setEnabledSystemUIMode(
-    SystemUiMode.edgeToEdge,
-  );
+  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 
-  ErrorWidget.builder = (errorDetails) {
-    return const Text('');
-  };
+  ErrorWidget.builder = (errorDetails) => const Text('');
 
   await Hive.initFlutter();
   Hive.registerAdapter(LocalizationDataAdapter());
   var box = await Hive.openBox('settings');
   localLanguageNotifier.value = box.get('language', defaultValue: 'am');
+
   String? name = await getInformation(key: 'name');
   String? phoneNumber = await getInformation(key: 'phoneNumber');
 
@@ -158,13 +193,17 @@ Future<void> main() async {
   phonenumberNotifier.value = phoneNumber;
 
   String initLocation = await checkLoggedIn() ? '/entrypage' : '/videointro';
+  if (initLocation != '/videointro') {
+    unawaited(preloadLocalizations());
+  }
 
   globalRouter = createRoute(initLocation);
+
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]).then(
-    (value) => runApp(
+    (_) => runApp(
       MultiProvider(
         providers: [
           RepositoryProvider<QuizRepository>(
@@ -176,96 +215,45 @@ Future<void> main() async {
             ),
           ),
           BlocProvider(create: (context) => PersistentPlayerBloc()),
-
-          BlocProvider<TeamBloc>(
-            create: (context) => TeamBloc(),
-          ),
-          BlocProvider<AudioBloc>(
-            create: (context) => AudioBloc(),
-          ),
+          BlocProvider<TeamBloc>(create: (context) => TeamBloc()),
+          BlocProvider<AudioBloc>(create: (context) => AudioBloc()),
           BlocProvider<QuizBloc>(
             create: (context) => QuizBloc(
               quizRepository: context.read<QuizRepository>(),
             ),
           ),
-          BlocProvider<VideoBloc>(
-            create: (context) => VideoBloc(),
-          ),
-          BlocProvider<SocialMediaBloc>(
-            create: (context) => SocialMediaBloc(),
-            child: Container(),
-          ),
+          BlocProvider<VideoBloc>(create: (context) => VideoBloc()),
+          BlocProvider<SocialMediaBloc>(create: (context) => SocialMediaBloc()),
           BlocProvider(create: (context) => VideoPlayerBloc()),
-          // BlocProvider(
-          //   create: (context) => YoutubePlayerBloc(),
-          // ),
           BlocProvider<LiveTvBloc>(
             create: (context) => LiveTvBloc()..add(LiveTvRequested()),
           ),
-
           BlocProvider<HighlightTvBloc>(
             create: (context) => HighlightTvBloc()
               ..add(FetchRecentHighlights())
               ..add(const FetchCategories(1)),
           ),
           BlocProvider<VolumeBloc>(create: (context) => VolumeBloc()),
-          BlocProvider<FixtureeventBloc>(
-            create: (context) => FixtureeventBloc(),
-          ),
-
-          BlocProvider<TopScorersBloc>(
-            create: (context) => TopScorersBloc(),
-          ),
-          BlocProvider<TopAssistorsBloc>(
-            create: (context) => TopAssistorsBloc(),
-          ),
+          BlocProvider<FixtureeventBloc>(create: (context) => FixtureeventBloc()),
+          BlocProvider<TopScorersBloc>(create: (context) => TopScorersBloc()),
+          BlocProvider<TopAssistorsBloc>(create: (context) => TopAssistorsBloc()),
           BlocProvider<TopRedCardsBloc>(
             create: (context) => TopRedCardsBloc(),
             lazy: false,
           ),
-
-          BlocProvider<MatchesPageBloc>(
-            create: (context) => MatchesPageBloc(),
-          ),
-
-          // BlocProvider<CompletedBloc>(
-          //   create: (context) => CompletedBloc(),
-          // ),
-
-          // BlocProvider<HeresayBloc>(
-          //   create: (context) => HeresayBloc(),
-          // ),
-          BlocProvider<KnockoutBloc>(
-            create: (context) => KnockoutBloc(),
-          ),
-
-          // ChangeNotifierProvider(
-          //   create: (context) => DataState(),
-          //   child: Dynamicad(),
-          // ),
-
-          // BlocProvider<FixtureBloc>(
-          //   create: (context) => FixtureBloc(),
-          // ),
-
-          BlocProvider<ContentBloc>(
-            create: (context) => ContentBloc(),
-          ),
+          BlocProvider<MatchesPageBloc>(create: (context) => MatchesPageBloc()),
+          BlocProvider<KnockoutBloc>(create: (context) => KnockoutBloc()),
+          BlocProvider<ContentBloc>(create: (context) => ContentBloc()),
           BlocProvider<MatchStatisticsBloc>(
             create: (context) => MatchStatisticsBloc(),
           ),
-
           BlocProvider<HighlightsPageBloc>(
             create: (context) => HighlightsPageBloc(),
           ),
-
           BlocProvider<ProductBloc>(
             create: (context) => ProductBloc(repository: ProductRepository()),
           ),
-          BlocProvider<ScrollerBloc>(
-            create: (context) => ScrollerBloc(),
-          ),
-
+          BlocProvider<ScrollerBloc>(create: (context) => ScrollerBloc()),
           ChangeNotifierProvider<SongModelProvider>(
             create: (_) => SongModelProvider(),
           ),
@@ -273,9 +261,7 @@ Future<void> main() async {
             create: (context) => ThemeService(),
           ),
           BlocProvider<PodcastsBloc>(create: (context) => PodcastsBloc()),
-          BlocProvider<LineupsBloc>(
-            create: (context) => LineupsBloc(),
-          ),
+          BlocProvider<LineupsBloc>(create: (context) => LineupsBloc()),
           BlocProvider<FavouriteplayerBloc>(
               create: (context) => FavouriteplayerBloc()),
           BlocProvider<TopYellowCardsBloc>(
@@ -283,25 +269,13 @@ Future<void> main() async {
           BlocProvider<PlayerSelectionBloc>(
             create: (context) => PlayerSelectionBloc(),
           ),
-
-          // Keep your existing TopYellowCardsBloc
-          BlocProvider<TopYellowCardsBloc>(
-            create: (context) => TopYellowCardsBloc(),
-          ),
           BlocProvider<FavouriteTeamBloc>(
             create: (context) => FavouriteTeamBloc(),
           ),
           BlocProvider<AvailableSeasonsBloc>(
               create: (context) => AvailableSeasonsBloc()),
-          BlocProvider<NewsBloc>(
-            create: (context) => NewsBloc(),
-          ),
-          BlocProvider<ContentBloc>(
-            create: (context) => ContentBloc(),
-          ),
-          BlocProvider<HeadToHeadBloc>(
-            create: (context) => HeadToHeadBloc(),
-          ),
+          BlocProvider<NewsBloc>(create: (context) => NewsBloc()),
+          BlocProvider<HeadToHeadBloc>(create: (context) => HeadToHeadBloc()),
           BlocProvider<MyfavouritePlayersBloc>(
             create: (context) => MyfavouritePlayersBloc(),
           ),
@@ -326,18 +300,10 @@ Future<void> main() async {
           BlocProvider<MatchBloc>(create: (context) => MatchBloc()),
           BlocProvider<PaymentBloc>(create: (context) => PaymentBloc()),
         ],
-        //         child: DevicePreview(
-        //   enabled: !kReleaseMode,
-        //   builder: (context) => MyApp(), // Wrap your app
-        // ),
-
-        child: MyApp(
-          initLocation: initLocation,
-        ),
+        child: MyApp(initLocation: initLocation),
       ),
     ),
   );
-  // Get theme provider from the nearest context
 }
 
 class MyApp extends StatefulWidget {
@@ -349,39 +315,147 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+  late AppLinks _appLinks;
+  StreamSubscription<Uri>? _linkSubscription;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _handleDeepLink();
     _loadLanguage();
+    _initDeepLinks();
+
+    // Process any pending deep link after first frame (cold start fallback)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_pendingDeepLink != null && mounted) {
+        debugPrint('═══════════════════════════════════════════════════════════');
+        debugPrint('🔄 PROCESSING PENDING DEEP LINK (cold start fallback)');
+        debugPrint('   URI: $_pendingDeepLink');
+        debugPrint('═══════════════════════════════════════════════════════════');
+        
+        _handleDeepLink(_pendingDeepLink!);
+        _pendingDeepLink = null;
+      }
+    });
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _linkSubscription?.cancel();
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    switch (state) {
-      case AppLifecycleState.resumed:
-        // Update system UI when app resumes
-        _updateSystemUIAfterBuild();
-        break;
-      case AppLifecycleState.inactive:
-        break;
-      case AppLifecycleState.paused:
-        break;
-      case AppLifecycleState.detached:
-        break;
-      default:
-        break;
+    if (state == AppLifecycleState.resumed) {
+      _updateSystemUIAfterBuild();
     }
   }
 
-  _loadLanguage() async {
+  Future<void> _initDeepLinks() async {
+    _appLinks = AppLinks();
+
+    // Handle links when app is already running
+    _linkSubscription = _appLinks.uriLinkStream.listen(
+      (Uri uri) {
+        debugPrint('═══════════════════════════════════════════════════════════');
+        debugPrint('🔗 DEEP LINK RECEIVED (App Running)');
+        debugPrint('   URI: $uri');
+        debugPrint('   Scheme: ${uri.scheme}');
+        debugPrint('   Host: ${uri.host}');
+        debugPrint('   Path: ${uri.path}');
+        debugPrint('   Query: ${uri.queryParameters}');
+        debugPrint('═══════════════════════════════════════════════════════════');
+        
+        _handleDeepLink(uri);
+      },
+      onError: (Object err) {
+        debugPrint('❌ Deep link stream error: $err');
+      },
+    );
+
+    // Handle initial link (cold start / terminated → tap)
+    try {
+      final initialUri = await _appLinks.getInitialLink();
+      if (initialUri != null) {
+        debugPrint('═══════════════════════════════════════════════════════════');
+        debugPrint('🚀 INITIAL DEEP LINK DETECTED (Cold Start)');
+        debugPrint('   URI: $initialUri');
+        debugPrint('═══════════════════════════════════════════════════════════');
+
+        // Store as pending + try delayed execution
+        setPendingDeepLink(initialUri);
+
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          Future.delayed(const Duration(milliseconds: 900), () {
+            if (mounted && _pendingDeepLink != null) {
+              debugPrint('Executing delayed cold-start navigation');
+              _handleDeepLink(_pendingDeepLink!);
+              _pendingDeepLink = null;
+            }
+          });
+        });
+      }
+    } catch (e) {
+      debugPrint('❌ Failed to get initial deep link: $e');
+    }
+  }
+
+  void _handleDeepLink(Uri uri) {
+    try {
+      final hostLower = uri.host.toLowerCase();
+      final queryParams = uri.queryParameters;
+      final pathSegments = uri.pathSegments;
+
+      debugPrint('🧭 Processing deep link');
+      debugPrint('   Host: $hostLower');
+      debugPrint('   Path segments: $pathSegments');
+      debugPrint('   Query: $queryParams');
+
+      if (hostLower == 'matchdetail' || hostLower == 'matchDetail') {
+        final fixtureId = queryParams['fixtureId']?.trim();
+        if (fixtureId != null && fixtureId.isNotEmpty) {
+          debugPrint('→ Navigating to match detail: fixtureId=$fixtureId');
+          globalRouter.go('/matchDetail?fixtureId=$fixtureId');
+          return;
+        }
+      } 
+      
+      else if (hostLower == 'newsdetail') {
+        final newsId = pathSegments.isNotEmpty ? pathSegments.last : null;
+        final lang = queryParams['lang']?.trim();
+
+        if (newsId != null && newsId.isNotEmpty) {
+          if (lang != null && lang.isNotEmpty) {
+            localLanguageNotifier.value = lang;
+            debugPrint('→ Language set to: $lang');
+          }
+          debugPrint('→ Navigating to news detail: newsId=$newsId');
+          globalRouter.go('/newsDetail/$newsId');
+          return;
+        }
+      } 
+      
+      else if (hostLower == 'podcast') {
+        final podcastId = pathSegments.isNotEmpty ? pathSegments.last : null;
+        if (podcastId != null && podcastId.isNotEmpty) {
+          debugPrint('→ Navigating to podcast: id=$podcastId');
+          globalRouter.go('/podcast/$podcastId', extra: queryParams);
+          return;
+        }
+      }
+
+      debugPrint('⚠️ Unknown deep link format → fallback to home');
+      globalRouter.go('/home');
+    } catch (e, stack) {
+      debugPrint('❌ Deep link handling failed: $e');
+      debugPrint('Stack: $stack');
+      globalRouter.go('/home');
+    }
+  }
+
+  Future<void> _loadLanguage() async {
     var box = await Hive.openBox('settings');
     localLanguageNotifier.value = box.get('language', defaultValue: 'am');
   }
@@ -389,7 +463,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   void _updateSystemUIAfterBuild() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-
       final themeService = Provider.of<ThemeService>(context, listen: false);
       final brightness = MediaQuery.of(context).platformBrightness;
 
@@ -421,9 +494,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       builder: (context, child) {
         return Consumer<ThemeService>(
           builder: (context, themeService, _) {
-            // Schedule system UI update after build completes
             _updateSystemUIAfterBuild();
-
             return Directionality(
               textDirection: TextDirection.ltr,
               child: MaterialApp.router(
@@ -433,9 +504,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                 themeMode: themeService.themeMode,
                 theme: lightMode,
                 darkTheme: darkMode,
-                builder: (context, child) {
-                  return child!;
-                },
+                builder: (context, child) => child!,
               ),
             );
           },
@@ -443,38 +512,13 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       },
     );
   }
-
-  Future<void> _handleDeepLink() async {
-    final appLinks = AppLinks();
-    final Uri? uri = await appLinks.getInitialLink();
-    if (uri != null) {
-      openAppLink(uri);
-    }
-
-    appLinks.uriLinkStream.listen((uri) {
-      openAppLink(uri);
-    });
-  }
-
-  void openAppLink(Uri uri) {
-    if (uri.pathSegments.isNotEmpty && uri.pathSegments[0] == 'news') {
-      final newsId = uri.pathSegments.length > 1 ? uri.pathSegments[1] : null;
-      final lang = uri.queryParameters['lang'] ?? localLanguageNotifier.value;
-
-      if (newsId != null) {
-        localLanguageNotifier.value = lang;
-        globalRouter.go('/news/$newsId', extra: lang);
-      }
-    } else {
-      globalRouter.go('/home');
-    }
-  }
 }
 
 class MyHttpOverrides extends HttpOverrides {
   @override
   HttpClient createHttpClient(SecurityContext? context) {
-    return super.createHttpClient(context)
-      ..badCertificateCallback = (cert, host, port) => true;
+    final client = super.createHttpClient(context);
+    client.badCertificateCallback = (cert, host, port) => true;
+    return client;
   }
 }

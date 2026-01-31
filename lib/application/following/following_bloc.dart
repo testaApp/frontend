@@ -26,7 +26,8 @@ class FollowingBloc extends Bloc<FollowingEvent, FollowingState> {
     on<CheckFollowingMatch>(_handleCheckFollowingEvent);
     on<CheckFollowingPlayer>(_handleCheckFollowingPlayer);
     on<CheckFollowingPodcast>(_handleCheckFollowingPodcast);
-    on<ToggleFollowPlayer>(_handleToggleFollowPlayer); // Add this
+    on<ToggleFollowPlayer>(_handleToggleFollowPlayer);
+    
     Future<void> handleFetchAndSaveFavoritePodcasts(
         FetchAndSaveFavoritePodcasts event,
         Emitter<FollowingState> emit) async {
@@ -40,11 +41,13 @@ class FollowingBloc extends Bloc<FollowingEvent, FollowingState> {
 
   Future<void> _handleAddFavouriteMatchEvent(
       AddFavouriteMatchEvent event, Emitter<FollowingState> emit) async {
+    print('⚽ ADD MATCH: Starting to add match ID: ${event.matchId}');
+    print('📊 Current state status: ${state.status}');
+    
     if (state.status == Status.notFollowing ||
         state.status == Status.unfollowRequested) {
       emit(state.copyWith(status: Status.followRequested));
       try {
-        final acc = await getAccessToken();
         final response = await http.post(
             Uri.parse('$url/api/user/addToFavMatch'),
             body: jsonEncode({
@@ -57,11 +60,64 @@ class FollowingBloc extends Bloc<FollowingEvent, FollowingState> {
 
         if (response.statusCode == 201 || response.statusCode == 200) {
           emit(state.copyWith(status: Status.following));
+          
+          // ✨ Subscribe to FCM topic for this match
+          final languageCode = localLanguageNotifier.value;
+          await FCMTopicManager.subscribeToMatch(
+            fixtureId: event.matchId.toString(),
+            languageCode: languageCode,
+          );
+          print('🔔 Subscribed to match notifications: testa_match_${event.matchId}_$languageCode');
         } else {
+          print('❌ Failed to add match to favorites: ${response.statusCode}');
           emit(state.copyWith(status: Status.networkError));
         }
       } catch (e) {
-        print('error happended while adding match to favourite $e');
+        print('❌ Error happened while adding match to favourite: $e');
+        emit(state.copyWith(status: Status.networkError));
+      }
+    }
+  }
+
+  Future<void> _handleRemoveFavouriteMatchEvent(
+      RemoveFavouriteMatchEvent event, Emitter<FollowingState> emit) async {
+    print('🗑️ REMOVE MATCH: Starting to remove match ID: ${event.matchId}');
+    print('📊 Current state status: ${state.status}');
+    
+    if (state.status == Status.following ||
+        state.status == Status.followRequested) {
+      emit(state.copyWith(status: Status.unfollowRequested));
+
+      try {
+        final response = await http.post(
+            Uri.parse('$url/api/user/removeFavMatch'),
+            body: jsonEncode({
+              'matchId': event.matchId.toString(),
+            }),
+            headers: {
+              'accesstoken': await getAccessToken(),
+              'content-type': 'application/json'
+            });
+        
+        print('📡 Remove match response: ${response.statusCode}');
+
+        if (response.statusCode == 201 || response.statusCode == 200) {
+          emit(state.copyWith(status: Status.notFollowing));
+          
+          // ✨ Unsubscribe from FCM topic for this match
+          final languageCode = localLanguageNotifier.value;
+          await FCMTopicManager.unsubscribeFromMatch(
+            fixtureId: event.matchId.toString(),
+            languageCode: languageCode,
+          );
+          print('🔕 Unsubscribed from match notifications: testa_match_${event.matchId}_$languageCode');
+        } else {
+          print('❌ Failed to remove match: ${response.statusCode}');
+          emit(state.copyWith(status: Status.networkError));
+        }
+      } catch (e) {
+        print('❌ Error happened while removing match: $e');
+        emit(state.copyWith(status: Status.networkError));
       }
     }
   }
@@ -91,7 +147,7 @@ class FollowingBloc extends Bloc<FollowingEvent, FollowingState> {
           emit(state.copyWith(status: Status.networkError));
         }
       } catch (e) {
-        print('error happended while adding match to favourite $e');
+        print('error happended while adding team to favourite $e');
       }
     }
   }
@@ -115,140 +171,103 @@ class FollowingBloc extends Bloc<FollowingEvent, FollowingState> {
             });
 
         if (response.statusCode == 201 || response.statusCode == 200) {
-          // final favouriteMatches = response?.data['favouriteMatches'] as List<int>;
           emit(state.copyWith(status: Status.following));
-          // await saveListToHiveBox(favouriteMatches, 'favouriteMatches');
         } else {
           emit(state.copyWith(status: Status.networkError));
         }
       } catch (e) {
-        print('error happended while adding match to favourite $e');
+        print('error happended while adding player to favourite $e');
       }
     }
   }
 
-Future<void> _handleAddFavouritePodcastEvent(
-    FollowPodcastRequested event, Emitter<FollowingState> emit) async {
-  print('🎙️ ADD PODCAST: Starting to add podcast ID: ${event.podcastId}');
-  print('📊 Current state status: ${state.status}');
-  
-  if (state.status == Status.notFollowing ||
-      state.status == Status.unfollowRequested) {
-    emit(state.copyWith(status: Status.followRequested));
-    
-    try {
-      final response = await http.post(
-        Uri.parse('$url/api/user/addToFavPodcast'),
-        body: jsonEncode({
-          'podcastId': event.podcastId,
-        }),
-        headers: {
-          'accesstoken': await getAccessToken(),
-          'content-type': 'application/json'
-        },
-      );
-
-      if (response.statusCode == 201 || response.statusCode == 200) {
-        emit(state.copyWith(status: Status.following));
-        
-        // ✨ NEW: Subscribe to FCM topic
-        if (event.programId != null && event.programId!.isNotEmpty) {
-          final languageCode = localLanguageNotifier.value;
-          await FCMTopicManager.subscribeToPodcast(
-            programId: event.programId!,
-            languageCode: languageCode,
-          );
-          print('🔔 Subscribed to notifications for ${event.programId} in $languageCode');
-        }
-      } else {
-        emit(state.copyWith(status: Status.networkError));
-      }
-    } catch (e) {
-      print('error happened while adding podcast to favourite $e');
-      emit(state.copyWith(status: Status.networkError));
-    }
-  }
-}
-
-Future<void> _handleRemovePodcastEvent(
-    RemoveFollowingPodcast event, Emitter<FollowingState> emit) async {
-  print('🗑️ REMOVE PODCAST: Starting to remove podcast ID: ${event.podcastId}');
-  print('📊 Current state status: ${state.status}');
-  
-  if (state.status == Status.following ||
-      state.status == Status.followRequested) {
-    emit(state.copyWith(status: Status.unfollowRequested));
-
-    try {
-      final response = await http.post(
-        Uri.parse('$url/api/user/removeFavPodcast'),
-        body: jsonEncode({
-          'podcastId': event.podcastId,
-        }),
-        headers: {
-          'accesstoken': await getAccessToken(),
-          'content-type': 'application/json'
-        },
-      );
-      
-      print(response.statusCode);
-
-      if (response.statusCode == 201 || response.statusCode == 200) {
-        emit(state.copyWith(status: Status.notFollowing));
-        
-        // ✨ NEW: Unsubscribe from FCM topic
-        if (event.programId != null && event.programId!.isNotEmpty) {
-          final languageCode = localLanguageNotifier.value;
-          await FCMTopicManager.unsubscribeFromPodcastTopic(
-            programId: event.programId!,
-            languageCode: languageCode,
-          );
-          print('🔕 Unsubscribed from notifications for ${event.programId} in $languageCode');
-        }
-      } else {
-        emit(state.copyWith(status: Status.networkError));
-      }
-    } catch (e) {
-      print('error happened $e');
-      emit(state.copyWith(status: Status.networkError));
-    }
-  }
-}
-  
-Future<void> _handleRemoveFavouriteMatchEvent(
-      RemoveFavouriteMatchEvent event, Emitter<FollowingState> emit) async {
-    print('🗑️ REMOVE MATCH: Starting to remove match ID: ${event.matchId}');
+  Future<void> _handleAddFavouritePodcastEvent(
+      FollowPodcastRequested event, Emitter<FollowingState> emit) async {
+    print('🎙️ ADD PODCAST: Starting to add podcast ID: ${event.podcastId}');
     print('📊 Current state status: ${state.status}');
+    
+    if (state.status == Status.notFollowing ||
+        state.status == Status.unfollowRequested) {
+      emit(state.copyWith(status: Status.followRequested));
+      
+      try {
+        final response = await http.post(
+          Uri.parse('$url/api/user/addToFavPodcast'),
+          body: jsonEncode({
+            'podcastId': event.podcastId,
+          }),
+          headers: {
+            'accesstoken': await getAccessToken(),
+            'content-type': 'application/json'
+          },
+        );
+
+        if (response.statusCode == 201 || response.statusCode == 200) {
+          emit(state.copyWith(status: Status.following));
+          
+          // ✨ Subscribe to FCM topic
+          if (event.programId != null && event.programId!.isNotEmpty) {
+            final languageCode = localLanguageNotifier.value;
+            await FCMTopicManager.subscribeToPodcast(
+              programId: event.programId!,
+              languageCode: languageCode,
+            );
+            print('🔔 Subscribed to notifications for ${event.programId} in $languageCode');
+          }
+        } else {
+          emit(state.copyWith(status: Status.networkError));
+        }
+      } catch (e) {
+        print('error happened while adding podcast to favourite $e');
+        emit(state.copyWith(status: Status.networkError));
+      }
+    }
+  }
+
+  Future<void> _handleRemovePodcastEvent(
+      RemoveFollowingPodcast event, Emitter<FollowingState> emit) async {
+    print('🗑️ REMOVE PODCAST: Starting to remove podcast ID: ${event.podcastId}');
+    print('📊 Current state status: ${state.status}');
+    
     if (state.status == Status.following ||
         state.status == Status.followRequested) {
       emit(state.copyWith(status: Status.unfollowRequested));
 
       try {
         final response = await http.post(
-            Uri.parse('$url/api/user/removeFavMatch'),
-            body: jsonEncode({
-              'matchId': event.matchId.toString(),
-            }),
-            headers: {
-              'accesstoken': await getAccessToken(),
-              'content-type': 'application/json'
-            });
+          Uri.parse('$url/api/user/removeFavPodcast'),
+          body: jsonEncode({
+            'podcastId': event.podcastId,
+          }),
+          headers: {
+            'accesstoken': await getAccessToken(),
+            'content-type': 'application/json'
+          },
+        );
+        
         print(response.statusCode);
 
         if (response.statusCode == 201 || response.statusCode == 200) {
-          // final favouriteMatches = response?.data['favouriteMatches'] as List<int>;
           emit(state.copyWith(status: Status.notFollowing));
-          // await saveListToHiveBox(favouriteMatches, 'favouriteMatches');
+          
+          // ✨ Unsubscribe from FCM topic
+          if (event.programId != null && event.programId!.isNotEmpty) {
+            final languageCode = localLanguageNotifier.value;
+            await FCMTopicManager.unsubscribeFromPodcastTopic(
+              programId: event.programId!,
+              languageCode: languageCode,
+            );
+            print('🔕 Unsubscribed from notifications for ${event.programId} in $languageCode');
+          }
         } else {
-          // emit(state.copyWith(status: Status.unknownError));
+          emit(state.copyWith(status: Status.networkError));
         }
       } catch (e) {
         print('error happened $e');
-        // emit(state.copyWith(status: Status.unknownError));
+        emit(state.copyWith(status: Status.networkError));
       }
     }
   }
-
 
   Future<void> _handleRemoveFavouriteTeamEvent(
       RemoveFollowingTeam event, Emitter<FollowingState> emit) async {
@@ -271,9 +290,7 @@ Future<void> _handleRemoveFavouriteMatchEvent(
         print(response.statusCode);
 
         if (response.statusCode == 201 || response.statusCode == 200) {
-          // final favouriteMatches = response?.data['favouriteMatches'] as List<int>;
           emit(state.copyWith(status: Status.notFollowing));
-          // await saveListToHiveBox(favouriteMatches, 'favouriteMatches');
         } else {
           emit(state.copyWith(status: Status.unknownError));
         }
@@ -305,9 +322,7 @@ Future<void> _handleRemoveFavouriteMatchEvent(
         print(response.statusCode);
 
         if (response.statusCode == 201 || response.statusCode == 200) {
-          // final favouriteMatches = response?.data['favouriteMatches'] as List<int>;
           emit(state.copyWith(status: Status.notFollowing));
-          // await saveListToHiveBox(favouriteMatches, 'favouriteMatches');
         } else {
           emit(state.copyWith(status: Status.unknownError));
         }

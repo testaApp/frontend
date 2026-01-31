@@ -48,9 +48,8 @@ Future<bool> checkLoggedIn() async {
 GoRouter createRoute(String initialLocation) {
   return GoRouter(
     initialLocation: initialLocation,
-    navigatorKey: GlobalKey<NavigatorState>(),
+    navigatorKey: GlobalKey<NavigatorState>(debugLabel: 'rootNavigator'),
     debugLogDiagnostics: true,
-    restorationScopeId: 'app',
     routes: [
       _createGoRoute(
         path: '/videointro',
@@ -62,63 +61,60 @@ GoRouter createRoute(String initialLocation) {
         name: RouteNames.chooselanguage,
         builder: (context, state) => const LanguageChoose(),
       ),
-// Fixed route handler with proper language handling
+      _createGoRoute(
+        path: '/podcast/:id',
+        name: 'podcastLive',
+        builder: (context, state) {
+          final id = state.pathParameters['id'] ?? '';
+          final extra = state.extra as Map<String, dynamic>?;
 
-_createGoRoute(
-  path: '/podcast/:id',
-  name: 'podcastLive',
-  builder: (context, state) {
-    final id = state.pathParameters['id'] ?? '';
-    final extra = state.extra as Map<String, dynamic>?;
+          // Helper to safely parse rssLink
+          List<String> parseRssLinks(dynamic data) {
+            if (data == null) return const [];
+            try {
+              if (data is String) {
+                final decoded = jsonDecode(data);
+                return List<String>.from(decoded);
+              } else if (data is List) {
+                return List<String>.from(data);
+              }
+            } catch (e) {
+              debugPrint('❌ Error parsing rssLink: $e');
+            }
+            return const [];
+          }
 
-    // Helper to safely parse rssLink
-    List<String> parseRssLinks(dynamic data) {
-      if (data == null) return const [];
-      try {
-        if (data is String) {
-          final decoded = jsonDecode(data);
-          return List<String>.from(decoded);
-        } else if (data is List) {
-          return List<String>.from(data);
-        }
-      } catch (e) {
-        debugPrint('❌ Error parsing rssLink: $e');
-      }
-      return const [];
-    }
+          // Safe boolean parsing
+          bool parseIsLive(dynamic value) {
+            if (value == null) return false;
+            if (value is bool) return value;
+            if (value is String) return value.toLowerCase() == 'true';
+            return false;
+          }
 
-    // Safe boolean parsing
-    bool parseIsLive(dynamic value) {
-      if (value == null) return false;
-      if (value is bool) return value;
-      if (value is String) return value.toLowerCase() == 'true';
-      return false;
-    }
+          // Get user's preferred language from extra data or use current
+          final userLanguage = extra?['language']?.toString() ?? localLanguageNotifier.value;
 
-    // Get user's preferred language from SharedPreferences
-    // You should pass this through the extra data or fetch it here
-    final userLanguage = extra?['language']?.toString() ?? 'en';
+          debugPrint('📻 Opening podcast with language: $userLanguage');
+          debugPrint('   ID: $id');
+          debugPrint('   Program: ${extra?['program']}');
 
-    debugPrint('📻 Opening podcast with language: $userLanguage');
-    debugPrint('   ID: $id');
-    debugPrint('   Program: ${extra?['program']}');
-
-    return Program(
-      id: id,
-      programId: extra?['programId']?.toString() ?? '',
-      name: extra?['name']?.toString() ?? '',
-      program: extra?['program']?.toString() ?? '',
-      station: extra?['station']?.toString() ?? '',
-      description: extra?['description']?.toString() ?? '',
-      avatar: extra?['avatar']?.toString() ?? '',
-      liveLink: extra?['liveLink']?.toString() ?? '',
-      rssLink: parseRssLinks(extra?['rssLink']),
-      time: const [], 
-      isProgram: parseIsLive(extra?['isLive']),
-    );
-  },
-),
- _createGoRoute(
+          return Program(
+            id: id,
+            programId: extra?['programId']?.toString() ?? '',
+            name: extra?['name']?.toString() ?? '',
+            program: extra?['program']?.toString() ?? '',
+            station: extra?['station']?.toString() ?? '',
+            description: extra?['description']?.toString() ?? '',
+            avatar: extra?['avatar']?.toString() ?? '',
+            liveLink: extra?['liveLink']?.toString() ?? '',
+            rssLink: parseRssLinks(extra?['rssLink']),
+            time: const [],
+            isProgram: parseIsLive(extra?['isLive']),
+          );
+        },
+      ),
+      _createGoRoute(
         path: '/transfer',
         name: RouteNames.transfer,
         builder: (context, state) {
@@ -138,7 +134,7 @@ _createGoRoute(
         },
       ),
       _createGoRoute(
-        path: '/settings', // Add this route
+        path: '/settings',
         name: RouteNames.settings,
         builder: (context, state) => const SettingsPage(),
       ),
@@ -154,7 +150,6 @@ _createGoRoute(
           String? val = state.uri.queryParameters['favourite'];
           String? teamLogo = state.uri.queryParameters['teamPic'];
 
-          // Check if extra exists before casting to avoid the Null check operator error
           if (state.extra != null) {
             if (val == null) {
               if (state.extra is PlayerName) {
@@ -173,9 +168,6 @@ _createGoRoute(
             }
           }
 
-          // If extra is null (which happens when navigating via ID parameter),
-          // we return the page anyway. The initState in PlayerProfilePage
-          // will pick up the 'id' from queryParameters and fetch the data.
           return PlayerProfilePage(
             teamPic: teamLogo,
           );
@@ -212,7 +204,6 @@ _createGoRoute(
           );
         },
       ),
-
       _createGoRoute(
         path: '/passcode',
         name: RouteNames.passcode,
@@ -231,12 +222,10 @@ _createGoRoute(
         path: '/favteam_entry',
         name: RouteNames.favouriteTeam_entry,
         builder: (context, state) {
-          final selectedLanguage =
-              state.extra as String; // Ensure `state.extra` is a String
+          final selectedLanguage = state.extra as String;
           return FollowTeamsPageEntry(selectedLanguage: selectedLanguage);
         },
       ),
-      // THIS IS YOUR MAIN FAVORITE PLAYER SCREEN — ONLY ONE!
       _createGoRoute(
         path: '/favplayer_entry',
         name: RouteNames.favouritePlayer_entry,
@@ -254,8 +243,7 @@ _createGoRoute(
         path: '/IntroductionPage',
         name: RouteNames.IntroductionPage,
         builder: (context, state) {
-          final selectedLanguage =
-              state.extra as String; // Assuming the language is passed as extra
+          final selectedLanguage = state.extra as String;
           return IntroductionPage(selectedLanguage: selectedLanguage);
         },
       ),
@@ -265,41 +253,35 @@ _createGoRoute(
         builder: (context, state) {
           final id = state.pathParameters['id'];
           final news = state.extra as News?;
+          
+          // Handle language from query parameters (deep link)
+          final lang = state.uri.queryParameters['lang'];
+          if (lang != null && lang.isNotEmpty) {
+            localLanguageNotifier.value = lang;
+          }
+          
           return NewsDetailPage(news: news, id: id);
         },
       ),
-
       _createGoRoute(
         path: '/notificationSettings',
         name: RouteNames.notificationSettings,
         builder: (context, state) => const SettingsScreen(),
       ),
       _createGoRoute(
-  path: '/matchDetail',
-  name: RouteNames.matchDetail,
-  builder: (context, state) {
-    // 1. Get the string safely
-    final fixtureIdString = state.uri.queryParameters['fixtureId'];
-    
-    // 2. Use tryParse instead of parse to prevent crashing
-    final fixtureId = int.tryParse(fixtureIdString ?? ''); 
+        path: '/matchDetail',
+        name: RouteNames.matchDetail,
+        builder: (context, state) {
+          final fixtureIdString = state.uri.queryParameters['fixtureId'];
+          final fixtureId = int.tryParse(fixtureIdString ?? '');
 
-    if (fixtureId == null) {
-      // Return a placeholder or error instead of crashing the whole app
-      return const Scaffold(body: Center(child: Text("Invalid Match ID")));
-    }
+          if (fixtureId == null) {
+            return const Scaffold(body: Center(child: Text("Invalid Match ID")));
+          }
 
-    return MatchDetailsPage(fixtureId: fixtureId);
-  },
-),
-      // _createGoRoute(
-      //   path: '/paymentwebview',
-      //   name: RouteNames.paymentRouteName,
-      //   builder: (context, state) {
-      //     final url = state.uri.queryParameters['paymentUrl'];
-      //     return PaymentPageWebView(paymentUrl: url ?? '');
-      //   },
-      // ),
+          return MatchDetailsPage(fixtureId: fixtureId);
+        },
+      ),
       _createGoRoute(
         path: '/payment',
         name: RouteNames.payment,

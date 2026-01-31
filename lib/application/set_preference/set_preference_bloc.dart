@@ -76,6 +76,7 @@ class SetPreferenceBloc extends Bloc<SetPreferenceEvent, SetPreferenceState> {
         // and allows returning users to register token quietly in main.dart
         final prefs = await SharedPreferences.getInstance();
         await prefs.setBool('setup_done', true);
+        await ensureBreakingNewsSubscription();  // only here, not in main
 
         emit(state.copyWith(status: SetPreferenceStatus.success));
         await deleteHiveBox('favPlayersBox');

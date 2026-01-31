@@ -65,39 +65,6 @@ class _ProgramState extends State<Program> with SingleTickerProviderStateMixin {
   bool isLive = false;
   OverlayEntry? overlayEntry;
 
-  // Future<bool> _handleNotificationPermission(
-  //     bool isLiked, BuildContext context) async {
-  //   var status = await Permission.notification.status;
-  //   if (!status.isGranted) {
-  //     final requestStatus = await Permission.notification.request();
-  //     if (requestStatus.isPermanentlyDenied) {
-  //       AppSettings.openAppSettings(type: AppSettingsType.notification);
-  //     }
-  //   }
-
-  //   if (status.isGranted) {
-  //     if (isLiked) {
-  //       context
-  //           .read<FollowingBloc>()
-  //           .add(RemoveFollowingPodcast(podcastId: widget.id));
-  //     } else {
-  //       context
-  //           .read<FollowingBloc>()
-  //           .add(FollowPodcastRequested(podcastId: widget.id));
-  //     }
-  //     return !isLiked;
-  //   } else {
-  //     ScaffoldMessenger.of(context).showSnackBar(
-  //       const SnackBar(
-  //         content:
-  //             Text('Notification permission is required to follow podcasts.'),
-  //         duration: Duration(seconds: 3),
-  //       ),
-  //     );
-  //     return isLiked;
-  //   }
-  // }
-
   @override
   void initState() {
     super.initState();

@@ -20,6 +20,7 @@ import '../../util/auth/tokens.dart';
 import '../../util/baseUrl.dart';
 import '../constants/colors.dart';
 import '../constants/text_utils.dart';
+import '../../services/fcm_service.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -492,6 +493,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
                             // Capture the SettingsPage context (this one stays valid)
                             final settingsPageContext = context;
+                            final oldLang = lang; // Store old language
 
                             // Optimistically update UI
                             setState(() {
@@ -510,6 +512,15 @@ class _SettingsPageState extends State<SettingsPage> {
                                 _getselectedlang(entry.key),
                                 fetchLocalizationValues(entry.key),
                               ]);
+
+                              // CRITICAL FIX: Update FCM subscriptions for language change
+                              // This will properly unsubscribe from old language topics
+                              // and subscribe to new language topics
+                              debugPrint('🌍 Updating FCM subscriptions: $oldLang → ${entry.key}');
+                              await FCMTopicManager.updateLanguageSubscriptions(
+                                oldLanguageCode: oldLang,
+                                newLanguageCode: entry.key,
+                              );
 
                               // Navigate to home only if SettingsPage is still mounted
                               if (mounted) {

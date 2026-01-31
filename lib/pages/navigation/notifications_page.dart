@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../localization/demo_localization.dart';
+import '../../main.dart';
+import '../../services/fcm_service.dart';
 import '../constants/text_utils.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -27,13 +29,11 @@ class _SettingsScreenState extends State<SettingsScreen>
     'lineup': true,
     'Match reminder': true,
     'Substitution': true,
-    'News': true,
     'Vibration': true,
     'Sound': true,
-    'Transfer News': true,
     'Breaking News': true,
-    'Podcasts': true,
     'Official Highlights': true,
+    'Podcasts': true,
   };
 
   @override
@@ -56,7 +56,14 @@ class _SettingsScreenState extends State<SettingsScreen>
       settingsData.forEach((key, _) {
         settings[key] = prefs.getBool(key) ?? true;
       });
+      
+      // Update master toggle based on actual settings
+      allEnabled = _areAllSettingsEnabled();
     });
+  }
+
+  bool _areAllSettingsEnabled() {
+    return settings.values.every((value) => value == true);
   }
 
   Future<void> _saveSettings(String key, bool value) async {
@@ -149,11 +156,30 @@ class _SettingsScreenState extends State<SettingsScreen>
                 scale: 0.8,
                 child: Switch.adaptive(
                   value: settings[settingKey] ?? true,
-                  onChanged: (value) {
+                  onChanged: (value) async {
                     setState(() {
                       settings[settingKey] = value;
-                      _saveSettings(settingKey, value);
+                      // Update master toggle after changing individual setting
+                      allEnabled = _areAllSettingsEnabled();
                     });
+                    
+                    await _saveSettings(settingKey, value);
+
+                    final lang = localLanguageNotifier.value;
+
+                    // Handle Breaking News subscription
+                    if (settingKey == 'Breaking News') {
+                      await FCMTopicManager.updateBreakingNewsSubscription(
+                        languageCode: lang,
+                        isEnabled: value,
+                      );
+                    }
+                    // Note: Match event settings are stored in SharedPreferences
+                    // and used as filters when showing notifications for subscribed matches.
+                    // Actual match subscriptions happen on the matches page when user
+                    // subscribes to a specific fixture.
+                    
+                    // Note: 'Podcasts' is handled locally via SharedPreferences filtering
                   },
                   activeColor: Theme.of(context).colorScheme.primary,
                   activeTrackColor:
@@ -282,14 +308,33 @@ class _SettingsScreenState extends State<SettingsScreen>
           ),
           Switch.adaptive(
             value: allEnabled,
-            onChanged: (value) {
+            onChanged: (value) async {
               setState(() {
                 allEnabled = value;
+                // Update all individual settings
                 settings.forEach((key, _) {
                   settings[key] = value;
-                  _saveSettings(key, value);
                 });
               });
+
+              final lang = localLanguageNotifier.value;
+
+              // Save all settings to SharedPreferences
+              for (final entry in settings.entries) {
+                await _saveSettings(entry.key, value);
+              }
+
+              // Update Breaking News subscription
+              await FCMTopicManager.updateBreakingNewsSubscription(
+                languageCode: lang,
+                isEnabled: value,
+              );
+
+              debugPrint('✅ Master toggle: ${value ? "enabled" : "disabled"}');
+              
+              // Note: Match event settings are stored in SharedPreferences.
+              // These act as filters for notifications from matches the user
+              // has specifically subscribed to on the matches page.
             },
             activeColor: Theme.of(context).colorScheme.primary,
             activeTrackColor:
@@ -346,19 +391,9 @@ class _SettingsScreenState extends State<SettingsScreen>
       'title': DemoLocalizations.news,
       'items': [
         {
-          'icon': Icons.newspaper,
-          'title': DemoLocalizations.news,
-          'key': 'News'
-        },
-        {
           'icon': Icons.flash_on,
           'title': DemoLocalizations.breakingNews,
           'key': 'Breaking News'
-        },
-        {
-          'icon': Icons.transfer_within_a_station,
-          'title': DemoLocalizations.transferNews,
-          'key': 'Transfer News'
         },
       ],
     },
@@ -409,6 +444,11 @@ class _SettingsScreenState extends State<SettingsScreen>
           'icon': Icons.swap_horiz,
           'title': DemoLocalizations.subst,
           'key': 'Substitution'
+        }, 
+        {
+          'icon': Icons.video_library_outlined,
+          'title': DemoLocalizations.highlight,
+          'key': 'Official Highlights'
         },
       ],
     },
@@ -419,16 +459,6 @@ class _SettingsScreenState extends State<SettingsScreen>
           'icon': Icons.podcasts,
           'title': DemoLocalizations.listen,
           'key': 'Podcasts'
-        },
-      ],
-    },
-    {
-      'title': DemoLocalizations.officialHighlights,
-      'items': [
-        {
-          'icon': Icons.video_library_outlined,
-          'title': DemoLocalizations.highlight,
-          'key': 'Official Highlights'
         },
       ],
     },
@@ -465,5 +495,9 @@ class _SettingsScreenState extends State<SettingsScreen>
     );
   }
 
-  // Additional helper methods...
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
 }

@@ -1,14 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:go_router/go_router.dart';
-import 'package:timezone/data/latest_all.dart' as tz;
 import '../../components/routenames.dart';
 import 'package:http/http.dart' as http;
-
-import '../../main.dart';
-import '../../notifications/notifier.dart';
 import '../../util/auth/tokens.dart';
 import '../../util/baseUrl.dart';
 import '../payment/notification_payment.dart';
@@ -20,7 +15,6 @@ class entrypage extends StatefulWidget {
   @override
   State<entrypage> createState() => entryPageState();
 }
-
 class entryPageState extends State<entrypage> {
   bool freeTrialExpired = false;
   bool subscriptionExpired = false;
@@ -29,23 +23,16 @@ class entryPageState extends State<entrypage> {
   @override
   void initState() {
     super.initState();
-    _initializeAsync();
-    _initializeNotificationPlugin();
-    fetchPaymentStatus();
+    _initializeEntryPage();
+  }
+
+  // ✅ SIMPLIFIED: Just fetch payment status and set up auto-navigation
+  Future<void> _initializeEntryPage() async {
+    await fetchPaymentStatus();
     _navigateToNextPageAfterDelay();
   }
 
-  Future<void> _initializeAsync() async {
-    tz.initializeTimeZones();
-
-    await Future.wait<void>([
-      fetchLocalizationValues('am'),
-      fetchLocalizationValues('en'),
-      fetchLocalizationValues('tr'),
-      fetchLocalizationValues('so'),
-      fetchLocalizationValues('or'),
-    ]);
-  }
+  // ❌ REMOVE _checkForNotification() completely - main.dart handles it now
 
   Future<void> fetchPaymentStatus() async {
     String url = BaseUrl().url;
@@ -60,7 +47,7 @@ class entryPageState extends State<entrypage> {
       );
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        print('the data $data');
+        debugPrint('Payment status: $data');
         setState(() {
           freeTrialExpired = data['freeTrialExpired'] ?? false;
           subscriptionExpired = data['subscriptionExpired'] ?? false;
@@ -70,7 +57,7 @@ class entryPageState extends State<entrypage> {
         throw Exception('Failed to load payment status');
       }
     } catch (e) {
-      print('Error fetching payment status: $e');
+      debugPrint('Error fetching payment status: $e');
     }
   }
 
@@ -90,15 +77,13 @@ class entryPageState extends State<entrypage> {
             Navigator.of(context).pop();
             Navigator.of(context).push(
               MaterialPageRoute(
-                  builder: (context) => const PaymentPage(
-                        title: 'payment',
-                      )),
+                builder: (context) => const PaymentPage(title: 'payment'),
+              ),
             );
           },
           onDismiss: () {
             setState(() {
-              _isPaymentDialogShown =
-                  false; // Reset flag when dialog is dismissed
+              _isPaymentDialogShown = false;
             });
             Navigator.of(context).pop();
           },
@@ -107,26 +92,25 @@ class entryPageState extends State<entrypage> {
     }
   }
 
-  void _navigateToNextPageAfterDelay() {
-    Future.delayed(const Duration(seconds: 5), () {
-      if (mounted && !_isPaymentDialogShown) {
-        print('Navigating to the home page');
-        GoRouter.of(context).goNamed(RouteNames.home);
-      }
-    });
-  }
+void _navigateToNextPageAfterDelay() {
+  Future.delayed(const Duration(seconds: 5), () {
+    if (!mounted) return;
 
-  void _initializeNotificationPlugin() {
-    const AndroidInitializationSettings initializationSettingsAndroid =
-        AndroidInitializationSettings('testaapp');
-    const InitializationSettings initializationSettings =
-        InitializationSettings(android: initializationSettingsAndroid);
+    // ✅ CHECK: Get the current path. 
+    // If it's not '/entrypage', a notification already navigated us.
+    final String currentPath = GoRouterState.of(context).uri.path;
+    
+    if (currentPath != '/entrypage') {
+      debugPrint('🚫 Notification navigation active. Cancelling auto-home redirect.');
+      return; 
+    }
 
-    // flutterLocalNotificationsPlugin.initialize(
-    //   initializationSettings,
-    // );
-  }
-
+    if (!_isPaymentDialogShown) {
+      debugPrint('✅ No notification, proceeding to home.');
+      context.goNamed(RouteNames.home);
+    }
+  });
+}
   @override
   Widget build(BuildContext context) {
     return Scaffold(

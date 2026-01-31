@@ -1,11 +1,15 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_open_app_settings/flutter_open_app_settings.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:permission_handler/permission_handler.dart';
+import 'package:permission_handler/permission_handler.dart' as AppSettings;
 
 import 'application/persistent_player/persistent_player_bloc.dart';
 import 'application/persistent_player/persistent_player_state.dart';
@@ -21,7 +25,6 @@ import 'pages/bottom_navigation/standing/standings_page.dart';
 import 'pages/bottom_navigation/Tv/tv.dart';
 import 'pages/constants/colors.dart';
 import 'pages/constants/text_utils.dart';
-import 'pages/entry_pages/functions.dart';
 import 'pages/navigation/navigation_draw.dart';
 import 'presentation/userPreferencesPage.dart';
 
@@ -36,16 +39,21 @@ class NewsHomeScreen extends StatefulWidget {
 }
 
 class _NewsHomeScreenState extends State<NewsHomeScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late PageController _pageController;
   late TabController _tabController;
   late Map<int, bool> _loadedTabs;
+
+  // SharedPreferences keys
+  static const String _keyNotificationAsked = 'notification_permission_asked';
+  static const String _keyNotificationDeclinedTime = 'notification_declined_time';
+  static const int _daysBeforeAskingAgain = 2; // Ask again after 2 days if declined
 
   @override
   void initState() {
     super.initState();
     _pageController = PageController();
-    _tabController = TabController(length: 3, vsync: this); // WhatsNew removed
+    _tabController = TabController(length: 3, vsync: this);
     _loadedTabs = {0: true, 1: false, 2: false};
 
     _tabController.addListener(() {
@@ -56,28 +64,135 @@ class _NewsHomeScreenState extends State<NewsHomeScreen>
       }
     });
 
-    Functionsinit().initializeSocket();
-   // NotificationService().initNotification(context: context);
     _tabController.addListener(_handleTabSelection);
+    WidgetsBinding.instance.addObserver(this);
+    
+    // Request permission after first frame - but only if we haven't asked before
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future.microtask(() async {
+        await _requestFCMPermissionIfNeeded();
+        
+      });
+    });
   }
+Future<void> _registerFcmTokenIfNeeded() async {
+  final prefs = await SharedPreferences.getInstance();
+  final lastKnownToken = prefs.getString('last_fcm_token');
 
+  try {
+    final token = await FirebaseMessaging.instance.getToken();
+    if (token == null) {
+      debugPrint('⚠️ No FCM token available');
+      return;
+    }
+
+    if (token != lastKnownToken) {
+      // Token is new or changed → register it
+      await FCMService().requestPermissionAndRegisterToken(); // or directly your send token logic
+      await prefs.setString('last_fcm_token', token);
+      debugPrint('✅ FCM token registered (new/changed): $token');
+    } else {
+      debugPrint('ℹ️ FCM token unchanged — skipping registration');
+    }
+  } catch (e) {
+    debugPrint('⚠️ FCM token handling failed: $e');
+  }
+}
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _requestFCMPermissionIfNeeded();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    
+    if (state == AppLifecycleState.resumed) {
+      _checkAndRegisterFCMAfterSettingsReturn();
+    }
+  }
+
+ Future<void> _checkAndRegisterFCMAfterSettingsReturn() async {
+  final settings = await FirebaseMessaging.instance.getNotificationSettings();
+  
+  if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+    await _registerFcmTokenIfNeeded();
+    debugPrint('✅ FCM registered after returning from settings (if needed)');
+  } else {
+    debugPrint('ℹ️ Still not authorized after settings visit');
+  }
+}
+  Future<bool> _shouldAskForPermission() async {
+    final prefs = await SharedPreferences.getInstance();
+    
+    // Check if we've already asked
+    final hasAsked = prefs.getBool(_keyNotificationAsked) ?? false;
+    
+    if (!hasAsked) {
+      // Never asked before - we should ask
+      return true;
+    }
+    
+    // Check if user declined and if enough time has passed
+    final declinedTime = prefs.getInt(_keyNotificationDeclinedTime);
+    if (declinedTime != null) {
+      final declinedDate = DateTime.fromMillisecondsSinceEpoch(declinedTime);
+      final daysSinceDeclined = DateTime.now().difference(declinedDate).inDays;
+      
+      if (daysSinceDeclined >= _daysBeforeAskingAgain) {
+        // It's been long enough, ask again
+        return true;
+      }
+    }
+    
+    // We've asked before and not enough time has passed
+    return false;
+  }
+
+  Future<void> _markPermissionAsked({bool wasDeclined = false}) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyNotificationAsked, true);
+    
+    if (wasDeclined) {
+      await prefs.setInt(_keyNotificationDeclinedTime, DateTime.now().millisecondsSinceEpoch);
+    } else {
+      // User accepted, remove the declined timestamp
+      await prefs.remove(_keyNotificationDeclinedTime);
+    }
   }
 
   Future<void> _requestFCMPermissionIfNeeded() async {
-    NotificationSettings settings =
-        await FirebaseMessaging.instance.getNotificationSettings();
+    // Get current notification settings
+    final settings = await FirebaseMessaging.instance.getNotificationSettings();
 
+    // If already authorized, just register the token
+ // If already authorized, register token only if needed
+if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+  await _registerFcmTokenIfNeeded();
+  return;
+}
+
+    // Check if we should ask for permission based on our stored preferences
+    final shouldAsk = await _shouldAskForPermission();
+    if (!shouldAsk) {
+      debugPrint('⏭️ Skipping notification permission request (already asked recently)');
+      return;
+    }
+
+    // If permission is denied, notDetermined, or provisional, show our custom dialog
     if (settings.authorizationStatus == AuthorizationStatus.denied ||
-        settings.authorizationStatus == AuthorizationStatus.notDetermined) {
-      bool? userWants = await showGeneralDialog<bool>(
-        context: context,
+        settings.authorizationStatus == AuthorizationStatus.notDetermined ||
+        settings.authorizationStatus == AuthorizationStatus.provisional) {
+      
+      final currentContext = context;
+      if (!mounted) return;
+
+      // Show dialog asking user to enable notifications
+      final userWants = await showGeneralDialog<bool>(
+        context: currentContext,
         barrierDismissible: true,
         barrierLabel: '',
-        barrierColor: Colors.black.withOpacity(0.65),
+        barrierColor: Colors.black.withAlpha(165),
         transitionDuration: const Duration(milliseconds: 280),
         pageBuilder: (_, __, ___) => const SizedBox.shrink(),
         transitionBuilder: (context, animation, _, __) {
@@ -88,19 +203,20 @@ class _NewsHomeScreenState extends State<NewsHomeScreen>
 
           final theme = Theme.of(context);
           final isDark = theme.brightness == Brightness.dark;
-          final backgroundColor = theme.dialogBackgroundColor;
+
+          final backgroundColor = theme.dialogTheme.backgroundColor ??
+              (isDark ? Colors.black : Colors.white);
+
           final titleColor = theme.textTheme.titleLarge?.color ??
               (isDark ? Colors.white : Colors.black);
-          final bodyColor = theme.textTheme.bodyMedium?.color
-                  ?.withOpacity(isDark ? 0.65 : 0.8) ??
-              (isDark
-                  ? Colors.white.withOpacity(0.65)
-                  : Colors.black.withOpacity(0.8));
-          final secondaryColor = theme.textTheme.bodyMedium?.color
-                  ?.withOpacity(isDark ? 0.5 : 0.6) ??
-              (isDark
-                  ? Colors.white.withOpacity(0.5)
-                  : Colors.black.withOpacity(0.6));
+
+          final bodyColor = (theme.textTheme.bodyMedium?.color ??
+                  (isDark ? Colors.white : Colors.black))
+              .withAlpha((isDark ? 165 : 204).toInt());
+
+          final secondaryColor = (theme.textTheme.bodyMedium?.color ??
+                  (isDark ? Colors.white : Colors.black))
+              .withAlpha((isDark ? 128 : 153).toInt());
 
           return Transform.translate(
             offset: Offset(0, slide.dy * 100),
@@ -125,7 +241,6 @@ class _NewsHomeScreenState extends State<NewsHomeScreen>
                         color: Colorscontainer.greenColor,
                       ),
                       const SizedBox(height: 20),
-                      // Title
                       Text(
                         DemoLocalizations.notification_title,
                         style: TextUtils.setTextStyle(
@@ -137,7 +252,6 @@ class _NewsHomeScreenState extends State<NewsHomeScreen>
                         ),
                       ),
                       const SizedBox(height: 8),
-                      // Body
                       Text(
                         DemoLocalizations.notification_body,
                         style: TextUtils.setTextStyle(
@@ -149,11 +263,12 @@ class _NewsHomeScreenState extends State<NewsHomeScreen>
                         ),
                       ),
                       const SizedBox(height: 28),
-                      // Primary button
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
-                          onPressed: () => Navigator.pop(context, true),
+                          onPressed: () async {
+                            Navigator.pop(context, true);
+                          },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colorscontainer.greenColor,
                             elevation: 0,
@@ -175,7 +290,6 @@ class _NewsHomeScreenState extends State<NewsHomeScreen>
                         ),
                       ),
                       const SizedBox(height: 16),
-                      // Secondary action
                       Center(
                         child: GestureDetector(
                           onTap: () => Navigator.pop(context, false),
@@ -199,14 +313,68 @@ class _NewsHomeScreenState extends State<NewsHomeScreen>
         },
       );
 
-      if (userWants == true) {
-        await FCMService().requestPermissionAndRegisterToken();
-      }
-    } else {
-      await FCMService().requestPermissionAndRegisterToken();
-    }
+      if (!mounted) return;
+
+      // Handle user's choice
+  if (userWants == true) {
+  await _markPermissionAsked(wasDeclined: false);
+
+  debugPrint('🟢 User wants notifications — proceeding');
+
+  // First try to request permission (works if notDetermined / provisional)
+  NotificationSettings? result;
+
+  try {
+    debugPrint('🔔 Attempting to show system permission dialog');
+    result = await FirebaseMessaging.instance.requestPermission(
+      alert: true,
+      announcement: false,
+      badge: true,
+      carPlay: false,
+      criticalAlert: false,
+      provisional: false,
+      sound: true,
+    );
+
+    debugPrint('📋 System permission result: ${result.authorizationStatus}');
+  } catch (e) {
+    debugPrint('⚠️ requestPermission() failed: $e');
   }
 
+  // Check final status after the request attempt
+  final finalSettings = await FirebaseMessaging.instance.getNotificationSettings();
+
+  if (finalSettings.authorizationStatus == AuthorizationStatus.authorized) {
+    // Success — register token smartly
+    await _registerFcmTokenIfNeeded();
+  } 
+  else if (finalSettings.authorizationStatus == AuthorizationStatus.denied) {
+    // Still denied after request → probably was denied before → guide to settings
+    debugPrint('📱 Permission is denied → opening app settings');
+if (defaultTargetPlatform == TargetPlatform.android) {
+  await FlutterOpenAppSettings.openAppsSettings(
+    settingsCode: SettingsCode.NOTIFICATION,
+  );
+  debugPrint('📱 Opened Android app-specific notification settings');
+} else {
+  await AppSettings.openAppSettings();
+  debugPrint('📱 Opened iOS / other platform app settings');
+}    
+    // Optional: you can show a small toast/snackbar here:
+    // ScaffoldMessenger.of(context).showSnackBar(... "Please enable notifications in settings");
+  } 
+  else {
+    debugPrint('ℹ️ Permission in another state: ${finalSettings.authorizationStatus}');
+  }
+} 
+else if (userWants == false) {
+  debugPrint('❌ User explicitly declined');
+  await _markPermissionAsked(wasDeclined: true);
+} 
+else {
+  debugPrint('⏭️ Dialog dismissed');
+  await _markPermissionAsked(wasDeclined: true);
+}}}
   void _handleTabSelection() {
     if (_tabController.indexIsChanging) {
       _pageController.animateToPage(
@@ -219,6 +387,7 @@ class _NewsHomeScreenState extends State<NewsHomeScreen>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _pageController.dispose();
     _tabController.removeListener(_handleTabSelection);
     _tabController.dispose();
