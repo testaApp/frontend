@@ -203,10 +203,18 @@ class _NewsDetailPageState extends State<NewsDetailPage>
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   // BACK BUTTON — now away from the edge
-                  _buildIconButton(
-                    Icons.arrow_back,
-                    () => context.pop(),
-                  ),
+                 // Inside NewsDetailPage build method
+_buildIconButton(
+  Icons.arrow_back,
+  () {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      // If we can't pop, it means we opened from a terminated state
+      context.go('/home'); // Or your home route name
+    }
+  },
+),
 
                   Row(
                     children: [

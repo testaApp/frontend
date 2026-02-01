@@ -1,3 +1,9 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:app_links/app_links.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
@@ -71,33 +77,34 @@ class _NewsHomeScreenState extends State<NewsHomeScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Future.microtask(() async {
         await _requestFCMPermissionIfNeeded();
-        
       });
     });
   }
-Future<void> _registerFcmTokenIfNeeded() async {
-  final prefs = await SharedPreferences.getInstance();
-  final lastKnownToken = prefs.getString('last_fcm_token');
 
-  try {
-    final token = await FirebaseMessaging.instance.getToken();
-    if (token == null) {
-      debugPrint('⚠️ No FCM token available');
-      return;
-    }
+  Future<void> _registerFcmTokenIfNeeded() async {
+    final prefs = await SharedPreferences.getInstance();
+    final lastKnownToken = prefs.getString('last_fcm_token');
 
-    if (token != lastKnownToken) {
-      // Token is new or changed → register it
-      await FCMService().requestPermissionAndRegisterToken(); // or directly your send token logic
-      await prefs.setString('last_fcm_token', token);
-      debugPrint('✅ FCM token registered (new/changed): $token');
-    } else {
-      debugPrint('ℹ️ FCM token unchanged — skipping registration');
+    try {
+      final token = await FirebaseMessaging.instance.getToken();
+      if (token == null) {
+        debugPrint('⚠️ No FCM token available');
+        return;
+      }
+
+      if (token != lastKnownToken) {
+        // Token is new or changed → register it
+        await FCMService().requestPermissionAndRegisterToken();
+        await prefs.setString('last_fcm_token', token);
+        debugPrint('✅ FCM token registered (new/changed): $token');
+      } else {
+        debugPrint('ℹ️ FCM token unchanged — skipping registration');
+      }
+    } catch (e) {
+      debugPrint('⚠️ FCM token handling failed: $e');
     }
-  } catch (e) {
-    debugPrint('⚠️ FCM token handling failed: $e');
   }
-}
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -112,16 +119,17 @@ Future<void> _registerFcmTokenIfNeeded() async {
     }
   }
 
- Future<void> _checkAndRegisterFCMAfterSettingsReturn() async {
-  final settings = await FirebaseMessaging.instance.getNotificationSettings();
-  
-  if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-    await _registerFcmTokenIfNeeded();
-    debugPrint('✅ FCM registered after returning from settings (if needed)');
-  } else {
-    debugPrint('ℹ️ Still not authorized after settings visit');
+  Future<void> _checkAndRegisterFCMAfterSettingsReturn() async {
+    final settings = await FirebaseMessaging.instance.getNotificationSettings();
+    
+    if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+      await _registerFcmTokenIfNeeded();
+      debugPrint('✅ FCM registered after returning from settings (if needed)');
+    } else {
+      debugPrint('ℹ️ Still not authorized after settings visit');
+    }
   }
-}
+
   Future<bool> _shouldAskForPermission() async {
     final prefs = await SharedPreferences.getInstance();
     
@@ -165,12 +173,11 @@ Future<void> _registerFcmTokenIfNeeded() async {
     // Get current notification settings
     final settings = await FirebaseMessaging.instance.getNotificationSettings();
 
-    // If already authorized, just register the token
- // If already authorized, register token only if needed
-if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-  await _registerFcmTokenIfNeeded();
-  return;
-}
+    // If already authorized, just register the token if needed
+    if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+      await _registerFcmTokenIfNeeded();
+      return;
+    }
 
     // Check if we should ask for permission based on our stored preferences
     final shouldAsk = await _shouldAskForPermission();
@@ -316,65 +323,66 @@ if (settings.authorizationStatus == AuthorizationStatus.authorized) {
       if (!mounted) return;
 
       // Handle user's choice
-  if (userWants == true) {
-  await _markPermissionAsked(wasDeclined: false);
+      if (userWants == true) {
+        await _markPermissionAsked(wasDeclined: false);
 
-  debugPrint('🟢 User wants notifications — proceeding');
+        debugPrint('🟢 User wants notifications — proceeding');
 
-  // First try to request permission (works if notDetermined / provisional)
-  NotificationSettings? result;
+        // Try to request permission
+        NotificationSettings? result;
 
-  try {
-    debugPrint('🔔 Attempting to show system permission dialog');
-    result = await FirebaseMessaging.instance.requestPermission(
-      alert: true,
-      announcement: false,
-      badge: true,
-      carPlay: false,
-      criticalAlert: false,
-      provisional: false,
-      sound: true,
-    );
+        try {
+          debugPrint('🔔 Attempting to show system permission dialog');
+          result = await FirebaseMessaging.instance.requestPermission(
+            alert: true,
+            announcement: false,
+            badge: true,
+            carPlay: false,
+            criticalAlert: false,
+            provisional: false,
+            sound: true,
+          );
 
-    debugPrint('📋 System permission result: ${result.authorizationStatus}');
-  } catch (e) {
-    debugPrint('⚠️ requestPermission() failed: $e');
+          debugPrint('📋 System permission result: ${result.authorizationStatus}');
+        } catch (e) {
+          debugPrint('⚠️ requestPermission() failed: $e');
+        }
+
+        // Check final status after the request attempt
+        final finalSettings = await FirebaseMessaging.instance.getNotificationSettings();
+
+        if (finalSettings.authorizationStatus == AuthorizationStatus.authorized) {
+          // Success — register token smartly
+          await _registerFcmTokenIfNeeded();
+        } 
+        else if (finalSettings.authorizationStatus == AuthorizationStatus.denied) {
+          // Still denied after request → guide to settings
+          debugPrint('📱 Permission is denied → opening app settings');
+          if (defaultTargetPlatform == TargetPlatform.android) {
+            await FlutterOpenAppSettings.openAppsSettings(
+              settingsCode: SettingsCode.NOTIFICATION,
+            );
+            debugPrint('📱 Opened Android app-specific notification settings');
+          } else {
+            await AppSettings.openAppSettings();
+            debugPrint('📱 Opened iOS / other platform app settings');
+          }
+        } 
+        else {
+          debugPrint('ℹ️ Permission in another state: ${finalSettings.authorizationStatus}');
+        }
+      } 
+      else if (userWants == false) {
+        debugPrint('❌ User explicitly declined');
+        await _markPermissionAsked(wasDeclined: true);
+      } 
+      else {
+        debugPrint('⏭️ Dialog dismissed');
+        await _markPermissionAsked(wasDeclined: true);
+      }
+    }
   }
 
-  // Check final status after the request attempt
-  final finalSettings = await FirebaseMessaging.instance.getNotificationSettings();
-
-  if (finalSettings.authorizationStatus == AuthorizationStatus.authorized) {
-    // Success — register token smartly
-    await _registerFcmTokenIfNeeded();
-  } 
-  else if (finalSettings.authorizationStatus == AuthorizationStatus.denied) {
-    // Still denied after request → probably was denied before → guide to settings
-    debugPrint('📱 Permission is denied → opening app settings');
-if (defaultTargetPlatform == TargetPlatform.android) {
-  await FlutterOpenAppSettings.openAppsSettings(
-    settingsCode: SettingsCode.NOTIFICATION,
-  );
-  debugPrint('📱 Opened Android app-specific notification settings');
-} else {
-  await AppSettings.openAppSettings();
-  debugPrint('📱 Opened iOS / other platform app settings');
-}    
-    // Optional: you can show a small toast/snackbar here:
-    // ScaffoldMessenger.of(context).showSnackBar(... "Please enable notifications in settings");
-  } 
-  else {
-    debugPrint('ℹ️ Permission in another state: ${finalSettings.authorizationStatus}');
-  }
-} 
-else if (userWants == false) {
-  debugPrint('❌ User explicitly declined');
-  await _markPermissionAsked(wasDeclined: true);
-} 
-else {
-  debugPrint('⏭️ Dialog dismissed');
-  await _markPermissionAsked(wasDeclined: true);
-}}}
   void _handleTabSelection() {
     if (_tabController.indexIsChanging) {
       _pageController.animateToPage(

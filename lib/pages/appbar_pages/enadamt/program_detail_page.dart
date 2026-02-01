@@ -11,7 +11,6 @@ import 'package:lottie/lottie.dart'; // Import the Lottie package
 import 'package:palette_generator/palette_generator.dart';
 import 'package:permission_handler/permission_handler.dart';
 
-import '../../../application/enadamt/checklivetime.dart';
 import '../../../application/following/following_bloc.dart';
 import '../../../application/following/following_event.dart';
 import '../../../application/following/following_state.dart';
@@ -184,8 +183,16 @@ class _ProgramState extends State<Program> with SingleTickerProviderStateMixin {
                           color: Colors.white,
                           size: 22.r,
                         ),
-                        onPressed: () => context.pop(),
-                      ),
+onPressed: () {
+  if (context.canPop()) {
+    // If there is a history (app was already open), just go back
+    context.pop();
+  } else {
+    // If opened from terminated state, the stack is empty.
+    // Force navigation to the Enadamt list page.
+    context.go('/enadamt'); 
+  }
+},                      ),
                     ),
                     actions: [
                       _buildFollowButton(),

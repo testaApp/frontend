@@ -8,7 +8,6 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -80,17 +79,22 @@ import 'util/auth/tokens.dart';
 import 'util/baseUrl.dart';
 import 'util/notifiers/username_notifier.dart';
 
-final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
-    FlutterLocalNotificationsPlugin();
-
 // ────────────────────────────────────────────────
-// Global pending deep link (for cold start reliability)
+// BACKGROUND MESSAGE HANDLER (must be top-level)
 // ────────────────────────────────────────────────
-Uri? _pendingDeepLink;
-
-void setPendingDeepLink(Uri? uri) {
-  _pendingDeepLink = uri;
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp();
+  debugPrint('🔔 Background message received → ${message.messageId}');
+  debugPrint('   Type: ${message.data['type']}');
+  // FCM will display the notification automatically
 }
+
+// ────────────────────────────────────────────────
+// Global variables
+// ────────────────────────────────────────────────
+late GoRouter globalRouter;
+ValueNotifier<String> localLanguageNotifier = ValueNotifier('am');
 
 Future<void> deleteLogin() async {
   final prefs = await SharedPreferences.getInstance();
@@ -133,35 +137,28 @@ Future<void> preloadLocalizations() async {
   ]);
 }
 
-Future<void> initializeLocalNotifications() async {
-  const AndroidInitializationSettings androidSettings =
-      AndroidInitializationSettings('testaapp');
-
-  const InitializationSettings settings =
-      InitializationSettings(android: androidSettings);
-
-  await flutterLocalNotificationsPlugin.initialize(settings);
-}
-
-@pragma('vm:entry-point')
-Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  await Firebase.initializeApp();
-  debugPrint('🔔 Background message received → ${message.messageId}');
-  debugPrint('   Type: ${message.data['type']}');
-}
-
-late GoRouter globalRouter;
-ValueNotifier<String> localLanguageNotifier = ValueNotifier('am');
-
 Future<void> main() async {
   HttpOverrides.global = MyHttpOverrides();
   WidgetsFlutterBinding.ensureInitialized();
 
-  await initializeLocalNotifications();
   await Firebase.initializeApp();
 
+  // Initialize FCM service
   await FCMService().initialize();
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+  // ✅ CRITICAL: Handle initial notification tap (when app was terminated)
+  final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
+  if (initialMessage != null) {
+    debugPrint('═══════════════════════════════════════════════════════════');
+    debugPrint('🚀 APP LAUNCHED FROM TERMINATED STATE VIA NOTIFICATION');
+    debugPrint('   Message ID: ${initialMessage.messageId}');
+    debugPrint('   Data: ${initialMessage.data}');
+    debugPrint('═══════════════════════════════════════════════════════════');
+    
+    // Store the notification data to process after app initialization
+    _storeInitialNotification(initialMessage);
+  }
 
   await setupServiceLocator();
 
@@ -306,6 +303,21 @@ Future<void> main() async {
   );
 }
 
+// ────────────────────────────────────────────────
+// Store initial notification for processing after init
+// ────────────────────────────────────────────────
+RemoteMessage? _initialNotification;
+
+void _storeInitialNotification(RemoteMessage message) {
+  _initialNotification = message;
+}
+
+RemoteMessage? getAndClearInitialNotification() {
+  final message = _initialNotification;
+  _initialNotification = null;
+  return message;
+}
+
 class MyApp extends StatefulWidget {
   final String initLocation;
   const MyApp({super.key, required this.initLocation});
@@ -325,16 +337,25 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     _loadLanguage();
     _initDeepLinks();
 
-    // Process any pending deep link after first frame (cold start fallback)
+    // ✅ CRITICAL: Process initial notification after app is ready
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_pendingDeepLink != null && mounted) {
+      final initialNotification = getAndClearInitialNotification();
+      if (initialNotification != null && mounted) {
         debugPrint('═══════════════════════════════════════════════════════════');
-        debugPrint('🔄 PROCESSING PENDING DEEP LINK (cold start fallback)');
-        debugPrint('   URI: $_pendingDeepLink');
+        debugPrint('🔄 PROCESSING INITIAL NOTIFICATION (cold start from terminated)');
+        debugPrint('   Message ID: ${initialNotification.messageId}');
+        debugPrint('   Data: ${initialNotification.data}');
         debugPrint('═══════════════════════════════════════════════════════════');
         
-        _handleDeepLink(_pendingDeepLink!);
-        _pendingDeepLink = null;
+        // Wait for app initialization to complete
+        Future.delayed(const Duration(milliseconds: 1500), () {
+          if (mounted) {
+            final type = (initialNotification.data['type'] as String? ?? '').toLowerCase();
+            final deepLink = _generateDeepLinkFromNotification(type, initialNotification.data);
+            debugPrint('🚀 Navigating to: $deepLink');
+            _handleDeepLink(Uri.parse(deepLink));
+          }
+        });
       }
     });
   }
@@ -362,10 +383,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         debugPrint('═══════════════════════════════════════════════════════════');
         debugPrint('🔗 DEEP LINK RECEIVED (App Running)');
         debugPrint('   URI: $uri');
-        debugPrint('   Scheme: ${uri.scheme}');
-        debugPrint('   Host: ${uri.host}');
-        debugPrint('   Path: ${uri.path}');
-        debugPrint('   Query: ${uri.queryParameters}');
         debugPrint('═══════════════════════════════════════════════════════════');
         
         _handleDeepLink(uri);
@@ -375,7 +392,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       },
     );
 
-    // Handle initial link (cold start / terminated → tap)
+    // Handle initial link (cold start via deep link, not notification)
     try {
       final initialUri = await _appLinks.getInitialLink();
       if (initialUri != null) {
@@ -384,21 +401,47 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         debugPrint('   URI: $initialUri');
         debugPrint('═══════════════════════════════════════════════════════════');
 
-        // Store as pending + try delayed execution
-        setPendingDeepLink(initialUri);
-
+        // Process after a delay
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          Future.delayed(const Duration(milliseconds: 900), () {
-            if (mounted && _pendingDeepLink != null) {
-              debugPrint('Executing delayed cold-start navigation');
-              _handleDeepLink(_pendingDeepLink!);
-              _pendingDeepLink = null;
+          Future.delayed(const Duration(milliseconds: 1500), () {
+            if (mounted) {
+              _handleDeepLink(initialUri);
             }
           });
         });
       }
     } catch (e) {
       debugPrint('❌ Failed to get initial deep link: $e');
+    }
+  }
+
+  String _generateDeepLinkFromNotification(String type, Map<String, dynamic> data) {
+    switch (type) {
+      case 'breakingnews':
+        final newsId = data['newsId'] ?? '';
+        final lang = data['lang'] ?? localLanguageNotifier.value;
+        return 'testaapp://newsDetail/$newsId?lang=$lang';
+
+      case 'matchevent':
+        final fixtureId = data['fixtureId'] ?? data['matchId'] ?? '';
+        return 'testaapp://matchDetail?fixtureId=$fixtureId';
+
+      case 'podcastlive':
+        final id = data['id'] ?? '';
+        final programId = Uri.encodeComponent(data['programId']?.toString() ?? '');
+        final name = Uri.encodeComponent(data['name']?.toString() ?? '');
+        final program = Uri.encodeComponent(data['program']?.toString() ?? '');
+        final station = Uri.encodeComponent(data['station']?.toString() ?? '');
+        final description = Uri.encodeComponent(data['description']?.toString() ?? '');
+        final avatar = Uri.encodeComponent(data['avatar']?.toString() ?? '');
+        final liveLink = Uri.encodeComponent(data['liveLink']?.toString() ?? '');
+        final rssLink = Uri.encodeComponent(data['rssLink']?.toString() ?? '');
+        final isLive = data['isLive']?.toString() ?? 'false';
+        final language = data['language']?.toString() ?? localLanguageNotifier.value;
+        return 'testaapp://podcast/$id?programId=$programId&name=$name&program=$program&station=$station&description=$description&avatar=$avatar&liveLink=$liveLink&rssLink=$rssLink&isLive=$isLive&language=$language';
+
+      default:
+        return 'testaapp://home';
     }
   }
 
@@ -413,7 +456,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       debugPrint('   Path segments: $pathSegments');
       debugPrint('   Query: $queryParams');
 
-      if (hostLower == 'matchdetail' || hostLower == 'matchDetail') {
+      if (hostLower == 'matchdetail') {
         final fixtureId = queryParams['fixtureId']?.trim();
         if (fixtureId != null && fixtureId.isNotEmpty) {
           debugPrint('→ Navigating to match detail: fixtureId=$fixtureId');

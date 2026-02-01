@@ -1,0 +1,20 @@
+flutter_native_splash:
+  # BACKGROUND: Pure green for all platforms except Android 12
+  color: "#068657"
+  
+  # LOGO: Your transparent PNG
+  image: assets/splash_logo.png
+
+  # ALIGNMENT: The correct parameters to replace what caused the error
+  android_gravity: center
+  ios_content_mode: center
+
+  # FULLSCREEN: Removes the status bar during splash
+  fullscreen: true
+
+  # ANDROID 12+ CONFIGURATION:
+  android_12:
+    image: assets/splash_logo.png
+    # Match this to your green color to make the "circle" invisible
+    icon_background_color: "#068657" 
+    color: "#068657"

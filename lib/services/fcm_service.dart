@@ -3,9 +3,7 @@ import 'dart:io';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
-import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../main.dart';
@@ -18,11 +16,11 @@ import '../util/baseUrl.dart';
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   debugPrint('🔔 Background message received → ${message.messageId}');
-  await FCMService().showLocalNotification(message);
+  // FCM handles notification display automatically
 }
 
 // ────────────────────────────────────────────────
-/// Central service for Firebase Cloud Messaging + local notifications
+/// Central service for Firebase Cloud Messaging
 // ────────────────────────────────────────────────
 class FCMService {
   static final FCMService _instance = FCMService._internal();
@@ -30,7 +28,6 @@ class FCMService {
   FCMService._internal();
 
   final FirebaseMessaging _messaging = FirebaseMessaging.instance;
-  final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
 
   String? _fcmToken;
   String? get fcmToken => _fcmToken;
@@ -43,20 +40,18 @@ class FCMService {
   Future<void> initialize() async {
     if (_isInitialized) return;
 
-    await _initializeLocalNotifications();
-
-    // Handle foreground messages
+    // Handle foreground messages (FCM will still show notification)
     FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
 
-    // Handle background → foreground (app was in background, user tapped notification)
-    FirebaseMessaging.onMessageOpenedApp.listen(_handleAppOpenedFromNotification);
+    // Handle notification tap when app is in background/terminated
+    FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationTap);
 
     // Token refresh listener
     _messaging.onTokenRefresh.listen(_handleTokenRefresh);
 
     _isInitialized = true;
 
-    debugPrint('✅ FCM Service initialized with deep linking');
+    debugPrint('✅ FCM Service initialized');
   }
 
   // ────────────────────────────────────────────────
@@ -75,88 +70,6 @@ class FCMService {
     if (settings.authorizationStatus == AuthorizationStatus.authorized ||
         settings.authorizationStatus == AuthorizationStatus.provisional) {
       await _fetchAndRegisterToken();
-    }
-  }
-
-  // ────────────────────────────────────────────────
-  // Local Notifications Setup - FIXED VERSION
-  // ────────────────────────────────────────────────
-  Future<void> _initializeLocalNotifications() async {
-    const androidSettings = AndroidInitializationSettings('testaapp');
-
-    const iosSettings = DarwinInitializationSettings(
-      requestAlertPermission: true,
-      requestBadgePermission: true,
-      requestSoundPermission: true,
-    );
-
-    const initSettings = InitializationSettings(
-      android: androidSettings,
-      iOS: iosSettings,
-    );
-
-    // ✅ CRITICAL FIX: Make sure the handler is properly registered
-    await _localNotifications.initialize(
-      initSettings,
-      onDidReceiveNotificationResponse: (NotificationResponse response) {
-        debugPrint('═══════════════════════════════════════════════════════════');
-        debugPrint('👆 NOTIFICATION TAPPED - RESPONSE RECEIVED');
-        debugPrint('   ID: ${response.id}');
-        debugPrint('   Action ID: ${response.actionId}');
-        debugPrint('   Input: ${response.input}');
-        debugPrint('   Payload: ${response.payload}');
-        debugPrint('═══════════════════════════════════════════════════════════');
-        
-        // Call the handler
-        _handleLocalNotificationResponse(response);
-      },
-      onDidReceiveBackgroundNotificationResponse: notificationTapBackground,
-    );
-
-    await _createAndroidNotificationChannels();
-    
-    debugPrint('✅ Local notifications initialized with tap handlers');
-  }
-
-  Future<void> _createAndroidNotificationChannels() async {
-    final androidPlugin = _localNotifications.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
-    if (androidPlugin == null) return;
-
-    const channels = [
-      AndroidNotificationChannel(
-        'breaking_news_channel',
-        'Breaking News',
-        description: 'Important breaking news',
-        importance: Importance.max,
-        playSound: true,
-        enableVibration: true,
-      ),
-      AndroidNotificationChannel(
-        'match_events_channel',
-        'Match Events',
-        description: 'Live match updates and events',
-        importance: Importance.max,
-        playSound: true,
-        enableVibration: true,
-      ),
-      AndroidNotificationChannel(
-        'podcast_live_channel',
-        'Live Podcasts',
-        description: 'Live podcast broadcasts',
-        importance: Importance.max,
-        playSound: true,
-        enableVibration: true,
-      ),
-      AndroidNotificationChannel(
-        'general_notifications_channel',
-        'General Notifications',
-        description: 'Other important updates',
-        importance: Importance.defaultImportance,
-      ),
-    ];
-
-    for (final channel in channels) {
-      await androidPlugin.createNotificationChannel(channel);
     }
   }
 
@@ -214,45 +127,26 @@ class FCMService {
   // ────────────────────────────────────────────────
   // Message Handlers
   // ────────────────────────────────────────────────
-  void _handleForegroundMessage(RemoteMessage message) {
+  void _handleForegroundMessage(RemoteMessage message) async {
     debugPrint('🔔 Foreground message → ${message.messageId}');
     debugPrint('   Type: ${message.data['type']}');
     debugPrint('   Data: ${message.data}');
-    showLocalNotification(message);
-  }
 
-  Future<void> showLocalNotification(RemoteMessage message) async {
+    // Check if notification should be filtered
     final prefs = await SharedPreferences.getInstance();
     if (!(prefs.getBool('setup_done') ?? false)) {
       debugPrint('⚠️ Setup not done, skipping notification');
       return;
     }
 
-    final notification = message.notification;
     final data = message.data;
-
-    debugPrint('═══════════════════════════════════════════════════════════');
-    debugPrint('📬 PROCESSING NOTIFICATION');
-    debugPrint('   Message ID: ${message.messageId}');
-    debugPrint('   Has notification: ${notification != null}');
-    debugPrint('   Has data: ${data.isNotEmpty}');
-    debugPrint('   Data keys: ${data.keys.toList()}');
-    debugPrint('   Raw data: $data');
-    debugPrint('═══════════════════════════════════════════════════════════');
-
-    // CRITICAL: Always include essential data fields
     if (data.isEmpty || data['type'] == null) {
-      debugPrint('❌ Missing required data fields, cannot process notification');
+      debugPrint('❌ Missing required data fields');
       return;
     }
 
-    // Normalize type to lowercase for consistent checking
     final type = (data['type'] as String? ?? '').toLowerCase();
     final subtype = (data['subtype'] as String? ?? '').toLowerCase();
-
-    debugPrint('   Original type: ${data['type']}');
-    debugPrint('   Normalized type: $type');
-    debugPrint('   Subtype: $subtype');
 
     // Check if notification type is enabled
     if (type == 'matchevent' && subtype.isNotEmpty) {
@@ -260,93 +154,18 @@ class FCMService {
         debugPrint('⚠️ Match event subtype $subtype is disabled, filtering out');
         return;
       }
-      debugPrint('✅ Match event subtype $subtype is enabled');
     } else if (!await _isNotificationTypeEnabled(type)) {
       debugPrint('⚠️ Notification type $type is disabled');
       return;
-    } else {
-      debugPrint('✅ Notification type $type is enabled');
     }
 
-    // Get image URL
-    String? imageUrl = notification?.android?.imageUrl ??
-        notification?.apple?.imageUrl ??
-        data['image'] ??
-        data['avatar'];
-
-    debugPrint('🖼️ Image URL: $imageUrl');
-
-    String? bigPicturePath;
-    if (imageUrl != null && imageUrl.isNotEmpty) {
-      bigPicturePath = await _downloadImageIfPossible(imageUrl);
-      debugPrint('📸 Image downloaded: ${bigPicturePath != null ? "✅ $bigPicturePath" : "❌"}');
-    }
-
-    // ✅ GENERATE DEEP LINK
-    final deepLink = _generateDeepLink(type, data);
-    debugPrint('🔗 Generated deep link: $deepLink');
-
-    final channelId = _getChannelId(type);
-
-    final androidDetails = AndroidNotificationDetails(
-      channelId,
-      _getChannelName(type),
-      channelDescription: _getChannelDescription(type),
-      importance: Importance.max,
-      priority: Priority.high,
-      icon: 'testaapp',
-      styleInformation: bigPicturePath != null
-          ? BigPictureStyleInformation(
-              FilePathAndroidBitmap(bigPicturePath),
-              largeIcon: FilePathAndroidBitmap(bigPicturePath),
-              contentTitle: notification?.title,
-              summaryText: notification?.body,
-              htmlFormatContentTitle: true,
-              htmlFormatSummaryText: true,
-            )
-          : BigTextStyleInformation(
-              notification?.body ?? '',
-              contentTitle: notification?.title,
-              htmlFormatContentTitle: true,
-              htmlFormatContent: true,
-            ),
-    );
-
-    final platformDetails = NotificationDetails(
-      android: androidDetails,
-      iOS: DarwinNotificationDetails(
-        presentAlert: true,
-        presentBadge: true,
-        presentSound: true,
-        attachments: bigPicturePath != null
-            ? [DarwinNotificationAttachment(bigPicturePath)]
-            : null,
-      ),
-    );
-
-    debugPrint('📦 Deep link payload being set: $deepLink');
-
-    try {
-      await _localNotifications.show(
-        message.hashCode,
-        notification?.title ?? 'Notification',
-        notification?.body ?? '',
-        platformDetails,
-        payload: deepLink, // ✅ Use deep link as payload
-      );
-
-      debugPrint('✅ Notification shown successfully with deep link');
-      debugPrint('   Notification ID: ${message.hashCode}');
-      debugPrint('   Payload attached: $deepLink');
-    } catch (e, stackTrace) {
-      debugPrint('❌ Failed to show notification: $e');
-      debugPrint('   Stack trace: $stackTrace');
-    }
+    // FCM will show the notification automatically in foreground
+    debugPrint('✅ Notification will be shown by FCM');
   }
 
-  void _handleAppOpenedFromNotification(RemoteMessage message) {
+  void _handleNotificationTap(RemoteMessage message) {
     debugPrint('═══════════════════════════════════════════════════════════');
-    debugPrint('👆 APP OPENED VIA FCM NOTIFICATION (background state)');
+    debugPrint('👆 NOTIFICATION TAPPED');
     debugPrint('   Message ID: ${message.messageId}');
     debugPrint('   Data: ${message.data}');
     debugPrint('═══════════════════════════════════════════════════════════');
@@ -366,37 +185,8 @@ class FCMService {
     // Generate and navigate to deep link
     final type = (message.data['type'] as String? ?? '').toLowerCase();
     final deepLink = _generateDeepLink(type, message.data);
-    debugPrint('🔗 Navigating to deep link from FCM: $deepLink');
+    debugPrint('🔗 Navigating to deep link from notification tap: $deepLink');
     _navigateToDeepLink(deepLink);
-  }
-
-  void _handleLocalNotificationResponse(NotificationResponse response) {
-    debugPrint('═══════════════════════════════════════════════════════════');
-    debugPrint('👆👆👆 LOCAL NOTIFICATION TAPPED 👆👆👆');
-    debugPrint('   Notification ID: ${response.id}');
-    debugPrint('   Payload: ${response.payload}');
-    debugPrint('   Payload length: ${response.payload?.length ?? 0}');
-    debugPrint('   Payload is null: ${response.payload == null}');
-    debugPrint('   Payload is empty: ${response.payload?.isEmpty}');
-    debugPrint('═══════════════════════════════════════════════════════════');
-
-    if (response.payload == null || response.payload!.isEmpty) {
-      debugPrint("❌ No payload found → fallback to /home");
-      Future.delayed(const Duration(milliseconds: 300), () {
-        try {
-          debugPrint('🏠 Navigating to home (no payload)');
-          globalRouter.go('/home');
-        } catch (e) {
-          debugPrint('❌ Navigation to home failed: $e');
-        }
-      });
-      return;
-    }
-
-    debugPrint("✅ Payload exists! Content: ${response.payload}");
-    
-    // The payload is a deep link URI
-    _navigateToDeepLink(response.payload!);
   }
 
   // ────────────────────────────────────────────────
@@ -452,126 +242,65 @@ class FCMService {
   // ────────────────────────────────────────────────
   // ✅ DEEP LINK NAVIGATION
   // ────────────────────────────────────────────────
-void _navigateToDeepLink(String deepLink) {
-  debugPrint('🚀 STARTING NAVIGATION TO DEEP LINK: $deepLink');
-  
-  try {
-    final uri = Uri.parse(deepLink);
-    final String hostLower = uri.host.toLowerCase();
-    final query = uri.queryParameters;
-
-    debugPrint('Host: $hostLower');
-    debugPrint('Path segments: ${uri.pathSegments}');
-    debugPrint('Query: $query');
-
-    if (hostLower == 'matchdetail' || hostLower == 'matchDetail') {
-      final fixtureId = query['fixtureId']?.trim();
-      if (fixtureId != null && fixtureId.isNotEmpty) {
-        debugPrint('→ Match detail: fixtureId=$fixtureId');
-        globalRouter.go('/matchDetail?fixtureId=$fixtureId');
-        return;
-      }
-    } 
+  void _navigateToDeepLink(String deepLink) {
+    debugPrint('🚀 STARTING NAVIGATION TO DEEP LINK: $deepLink');
     
-    else if (hostLower == 'newsdetail') {
-      // News uses path segment after host
-      final newsId = uri.pathSegments.isNotEmpty ? uri.pathSegments.last : null;
-      final lang = query['lang']?.trim();
+    try {
+      final uri = Uri.parse(deepLink);
+      final String hostLower = uri.host.toLowerCase();
+      final query = uri.queryParameters;
 
-      debugPrint('→ News detail: newsId=$newsId, lang=$lang');
+      debugPrint('Host: $hostLower');
+      debugPrint('Path segments: ${uri.pathSegments}');
+      debugPrint('Query: $query');
 
-      if (newsId != null && newsId.isNotEmpty) {
-        if (lang != null && lang.isNotEmpty) {
-          localLanguageNotifier.value = lang;
-          debugPrint('→ Language updated: $lang');
+      if (hostLower == 'matchdetail') {
+        final fixtureId = query['fixtureId']?.trim();
+        if (fixtureId != null && fixtureId.isNotEmpty) {
+          debugPrint('→ Match detail: fixtureId=$fixtureId');
+          globalRouter.go('/matchDetail?fixtureId=$fixtureId');
+          return;
         }
-        globalRouter.go('/newsDetail/$newsId');
-        return;
-      }
-    } 
-    
-    else if (hostLower == 'podcast') {
-      final podcastId = uri.pathSegments.isNotEmpty ? uri.pathSegments.last : null;
-      if (podcastId != null && podcastId.isNotEmpty) {
-        debugPrint('→ Podcast: id=$podcastId');
-        globalRouter.go('/podcast/$podcastId', extra: query);
-        return;
-      }
-    }
+      } 
+      
+      else if (hostLower == 'newsdetail') {
+        final newsId = uri.pathSegments.isNotEmpty ? uri.pathSegments.last : null;
+        final lang = query['lang']?.trim();
 
-    // Fallback only if nothing matched
-    debugPrint('→ Unknown / invalid deep link format → fallback to home');
-    globalRouter.go('/home');
-    
-  } catch (e, st) {
-    debugPrint('❌ Deep link error: $e');
-    debugPrint(st as String?);
-    globalRouter.go('/home');
+        debugPrint('→ News detail: newsId=$newsId, lang=$lang');
+
+        if (newsId != null && newsId.isNotEmpty) {
+          if (lang != null && lang.isNotEmpty) {
+            localLanguageNotifier.value = lang;
+            debugPrint('→ Language updated: $lang');
+          }
+          globalRouter.go('/newsDetail/$newsId');
+          return;
+        }
+      } 
+      
+      else if (hostLower == 'podcast') {
+        final podcastId = uri.pathSegments.isNotEmpty ? uri.pathSegments.last : null;
+        if (podcastId != null && podcastId.isNotEmpty) {
+          debugPrint('→ Podcast: id=$podcastId');
+          globalRouter.go('/podcast/$podcastId', extra: query);
+          return;
+        }
+      }
+
+      debugPrint('→ Unknown / invalid deep link format → fallback to home');
+      globalRouter.go('/home');
+      
+    } catch (e, st) {
+      debugPrint('❌ Deep link error: $e');
+      debugPrint(st.toString());
+      globalRouter.go('/home');
+    }
   }
-}
+
   // ────────────────────────────────────────────────
   // Helpers
   // ────────────────────────────────────────────────
-  Future<String?> _downloadImageIfPossible(String url) async {
-    try {
-      debugPrint('📥 Downloading image: $url');
-
-      final response = await http.get(Uri.parse(url)).timeout(
-        const Duration(seconds: 10),
-        onTimeout: () {
-          debugPrint('⏱️ Image download timeout');
-          return http.Response('', 408);
-        },
-      );
-
-      if (response.statusCode != 200) {
-        debugPrint('❌ Image download failed: ${response.statusCode}');
-        return null;
-      }
-
-      final dir = await getApplicationDocumentsDirectory();
-      final fileName = 'notif_${url.hashCode}.jpg';
-      final file = File('${dir.path}/$fileName');
-      await file.writeAsBytes(response.bodyBytes);
-
-      debugPrint('✅ Image saved: ${file.path}');
-      return file.path;
-    } catch (e) {
-      debugPrint('❌ Image download error: $e');
-      return null;
-    }
-  }
-
-  String _getChannelId(String type) {
-    const map = {
-      'breakingnews': 'breaking_news_channel',
-      'matchevent': 'match_events_channel',
-      'podcastlive': 'podcast_live_channel',
-      'manynotifications': 'general_notifications_channel',
-    };
-    return map[type] ?? 'general_notifications_channel';
-  }
-
-  String _getChannelName(String type) {
-    const map = {
-      'breakingnews': 'Breaking News',
-      'matchevent': 'Match Events',
-      'podcastlive': 'Live Podcasts',
-      'manynotifications': 'General Notifications',
-    };
-    return map[type] ?? 'General Notifications';
-  }
-
-  String _getChannelDescription(String type) {
-    const map = {
-      'breakingnews': 'Breaking news notifications',
-      'matchevent': 'Live match event notifications',
-      'podcastlive': 'Live podcast notifications',
-      'manynotifications': 'General app notifications',
-    };
-    return map[type] ?? 'General app notifications';
-  }
-
   Future<bool> _isNotificationTypeEnabled(String type) async {
     final prefs = await SharedPreferences.getInstance();
 
@@ -650,15 +379,6 @@ void _navigateToDeepLink(String deepLink) {
   }
 }
 
-// ✅ CRITICAL: Background notification tap handler
-@pragma('vm:entry-point')
-void notificationTapBackground(NotificationResponse notificationResponse) {
-  debugPrint('═══════════════════════════════════════════════════════════');
-  debugPrint('🌙 BACKGROUND NOTIFICATION TAP');
-  debugPrint('   Payload: ${notificationResponse.payload}');
-  debugPrint('═══════════════════════════════════════════════════════════');
-  // This will be handled when app comes to foreground
-}
 // ────────────────────────────────────────────────
 // Auto-subscribe helper
 // ────────────────────────────────────────────────

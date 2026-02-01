@@ -14,8 +14,10 @@ import '../bloc/news/news_event.dart';
 import '../domain/player/playerModel.dart';
 import '../domain/player/playerName.dart';
 import '../main.dart';
+import '../pages/appbar_pages/enadamt/enadamt_new.dart';
 import '../pages/appbar_pages/enadamt/program_detail_page.dart';
 import '../pages/bottom_navigation/matches/matchDetail.dart';
+import '../pages/bottom_navigation/matches/matches.dart';
 import '../models/news.dart';
 import '../models/teamName.dart';
 import '../Homepage.dart';
@@ -114,6 +116,7 @@ GoRouter createRoute(String initialLocation) {
           );
         },
       ),
+
       _createGoRoute(
         path: '/transfer',
         name: RouteNames.transfer,
@@ -137,6 +140,16 @@ GoRouter createRoute(String initialLocation) {
         path: '/settings',
         name: RouteNames.settings,
         builder: (context, state) => const SettingsPage(),
+      ),
+         _createGoRoute(
+        path: '/enadamt',
+        name: RouteNames.enadamt,
+        builder: (context, state) => const EnadamtNew(),
+      ),
+          _createGoRoute(
+        path: '/matchespage',
+        name: RouteNames.matchespage,
+        builder: (context, state) => const MatchesPage(),
       ),
       _createGoRoute(
         path: '/login',

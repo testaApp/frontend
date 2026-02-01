@@ -31,6 +31,7 @@ class RouteNames {
   static String youtubePlayerPage = 'youtubePlayerPage';
   static String chooseLeague = 'chooseLeague';
   static String notificationSettings = 'notificationSettings';
+  static String matchespage = 'matchespage';
   static String matchDetail = 'matchDetail';
   static String videointro = 'videointro';
   static String paymentRouteName = 'paymentwebview';
