@@ -3,7 +3,7 @@ flutter_native_splash:
   color: "#068657"
   
   # LOGO: Your transparent PNG
-  image: assets/splash_logo.png
+  image: assets/testa_logo_transparent.png
 
   # ALIGNMENT: The correct parameters to replace what caused the error
   android_gravity: center
@@ -14,7 +14,7 @@ flutter_native_splash:
 
   # ANDROID 12+ CONFIGURATION:
   android_12:
-    image: assets/splash_logo.png
+    image: assets/testa_logo_transparent.png
     # Match this to your green color to make the "circle" invisible
     icon_background_color: "#068657" 
     color: "#068657"

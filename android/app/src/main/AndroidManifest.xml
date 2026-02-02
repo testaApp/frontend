@@ -44,7 +44,8 @@
         </service>
 
         <activity
-            android:name="com.ryanheise.audioservice.AudioServiceActivity"
+            android:name=".MainActivity"
+            android:taskAffinity=""
             android:exported="true"
             android:launchMode="singleTop"
             android:theme="@style/LaunchTheme"

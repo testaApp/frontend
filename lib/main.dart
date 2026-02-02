@@ -143,22 +143,13 @@ Future<void> main() async {
 
   await Firebase.initializeApp();
 
+  // ✅ Initialize Awesome Notifications FIRST
+  await FCMService.initializeAwesomeNotifications();
+
   // Initialize FCM service
   await FCMService().initialize();
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
-  // ✅ CRITICAL: Handle initial notification tap (when app was terminated)
-  final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
-  if (initialMessage != null) {
-    debugPrint('═══════════════════════════════════════════════════════════');
-    debugPrint('🚀 APP LAUNCHED FROM TERMINATED STATE VIA NOTIFICATION');
-    debugPrint('   Message ID: ${initialMessage.messageId}');
-    debugPrint('   Data: ${initialMessage.data}');
-    debugPrint('═══════════════════════════════════════════════════════════');
-    
-    // Store the notification data to process after app initialization
-    _storeInitialNotification(initialMessage);
-  }
 
   await setupServiceLocator();
 
@@ -303,20 +294,6 @@ Future<void> main() async {
   );
 }
 
-// ────────────────────────────────────────────────
-// Store initial notification for processing after init
-// ────────────────────────────────────────────────
-RemoteMessage? _initialNotification;
-
-void _storeInitialNotification(RemoteMessage message) {
-  _initialNotification = message;
-}
-
-RemoteMessage? getAndClearInitialNotification() {
-  final message = _initialNotification;
-  _initialNotification = null;
-  return message;
-}
 
 class MyApp extends StatefulWidget {
   final String initLocation;
@@ -337,27 +314,21 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     _loadLanguage();
     _initDeepLinks();
 
-    // ✅ CRITICAL: Process initial notification after app is ready
+    // ✅ NEW: Check for initial notification action from awesome_notifications
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final initialNotification = getAndClearInitialNotification();
-      if (initialNotification != null && mounted) {
-        debugPrint('═══════════════════════════════════════════════════════════');
-        debugPrint('🔄 PROCESSING INITIAL NOTIFICATION (cold start from terminated)');
-        debugPrint('   Message ID: ${initialNotification.messageId}');
-        debugPrint('   Data: ${initialNotification.data}');
-        debugPrint('═══════════════════════════════════════════════════════════');
-        
-        // Wait for app initialization to complete
-        Future.delayed(const Duration(milliseconds: 1500), () {
-          if (mounted) {
-            final type = (initialNotification.data['type'] as String? ?? '').toLowerCase();
-            final deepLink = _generateDeepLinkFromNotification(type, initialNotification.data);
-            debugPrint('🚀 Navigating to: $deepLink');
-            _handleDeepLink(Uri.parse(deepLink));
-          }
-        });
-      }
+      _checkInitialNotification();
     });
+  }
+
+  // ✅ NEW: Check for initial notification from awesome_notifications
+  Future<void> _checkInitialNotification() async {
+    // Wait a bit for the app to fully initialize
+    await Future.delayed(const Duration(milliseconds: 1500));
+    
+    if (mounted) {
+      debugPrint('🔍 Checking for initial notification action...');
+      await FCMService.checkInitialNotificationAction();
+    }
   }
 
   @override
@@ -412,36 +383,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       }
     } catch (e) {
       debugPrint('❌ Failed to get initial deep link: $e');
-    }
-  }
-
-  String _generateDeepLinkFromNotification(String type, Map<String, dynamic> data) {
-    switch (type) {
-      case 'breakingnews':
-        final newsId = data['newsId'] ?? '';
-        final lang = data['lang'] ?? localLanguageNotifier.value;
-        return 'testaapp://newsDetail/$newsId?lang=$lang';
-
-      case 'matchevent':
-        final fixtureId = data['fixtureId'] ?? data['matchId'] ?? '';
-        return 'testaapp://matchDetail?fixtureId=$fixtureId';
-
-      case 'podcastlive':
-        final id = data['id'] ?? '';
-        final programId = Uri.encodeComponent(data['programId']?.toString() ?? '');
-        final name = Uri.encodeComponent(data['name']?.toString() ?? '');
-        final program = Uri.encodeComponent(data['program']?.toString() ?? '');
-        final station = Uri.encodeComponent(data['station']?.toString() ?? '');
-        final description = Uri.encodeComponent(data['description']?.toString() ?? '');
-        final avatar = Uri.encodeComponent(data['avatar']?.toString() ?? '');
-        final liveLink = Uri.encodeComponent(data['liveLink']?.toString() ?? '');
-        final rssLink = Uri.encodeComponent(data['rssLink']?.toString() ?? '');
-        final isLive = data['isLive']?.toString() ?? 'false';
-        final language = data['language']?.toString() ?? localLanguageNotifier.value;
-        return 'testaapp://podcast/$id?programId=$programId&name=$name&program=$program&station=$station&description=$description&avatar=$avatar&liveLink=$liveLink&rssLink=$rssLink&isLive=$isLive&language=$language';
-
-      default:
-        return 'testaapp://home';
     }
   }
 
@@ -565,3 +506,5 @@ class MyHttpOverrides extends HttpOverrides {
     return client;
   }
 }
+
+ 

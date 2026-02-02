@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:awesome_notifications/awesome_notifications.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -10,13 +11,77 @@ import '../main.dart';
 import '../util/auth/tokens.dart';
 import '../util/baseUrl.dart';
 
+
 // ────────────────────────────────────────────────
 // BACKGROUND MESSAGE HANDLER (must be top-level)
 // ────────────────────────────────────────────────
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   debugPrint('🔔 Background message received → ${message.messageId}');
-  // FCM handles notification display automatically
+  // awesome_notifications will handle the display
+  await _showAwesomeNotification(message);
+}
+
+// ────────────────────────────────────────────────
+// Helper function to show notification (used by both foreground and background)
+// ────────────────────────────────────────────────
+Future<void> _showAwesomeNotification(RemoteMessage message) async {
+  final notification = message.notification;
+  final data = message.data;
+
+  // Extract notification details
+  final title = notification?.title ?? data['title'] ?? 'Testa';
+  final body = notification?.body ?? data['body'] ?? '';
+  final imageUrl = notification?.android?.imageUrl ?? 
+                   notification?.apple?.imageUrl ?? 
+                   data['image'];
+
+  // Determine notification type for proper icon/color
+  final type = (data['type'] as String? ?? '').toLowerCase();
+  
+  String channelKey;
+  Color color;
+  NotificationCategory category;
+  
+  switch (type) {
+    case 'breakingnews':
+      channelKey = 'news_channel';
+      color = Colors.red;
+      category = NotificationCategory.Social;
+      break;
+    case 'matchevent':
+      channelKey = 'match_channel';
+      color = Colors.green;
+      category = NotificationCategory.Event;
+      break;
+    case 'podcastlive':
+      channelKey = 'podcast_channel';
+      color = Colors.blue;
+      category = NotificationCategory.Service;
+      break;
+    default:
+      channelKey = 'default_channel';
+      color = Colors.grey;
+      category = NotificationCategory.Message;
+  }
+
+  await AwesomeNotifications().createNotification(
+    content: NotificationContent(
+      id: DateTime.now().millisecondsSinceEpoch.remainder(100000),
+      channelKey: channelKey,
+      title: title,
+      body: body,
+      bigPicture: imageUrl,
+      notificationLayout: imageUrl != null 
+          ? NotificationLayout.BigPicture 
+          : NotificationLayout.Default,
+      payload: data.map((key, value) => MapEntry(key, value.toString())),
+      category: category,
+      color: color,
+      backgroundColor: color,
+      largeIcon: 'resource://drawable/testaapp',
+    ),
+  );
 }
 
 // ────────────────────────────────────────────────
@@ -35,15 +100,166 @@ class FCMService {
   bool _isInitialized = false;
 
   // ────────────────────────────────────────────────
-  // 1. Basic initialization (called early – no permission request)
+  // 1. Initialize Awesome Notifications
+  // ────────────────────────────────────────────────
+  static Future<void> initializeAwesomeNotifications() async {
+    await AwesomeNotifications().initialize(
+      'resource://drawable/testaapp', // Your app icon
+      [
+        NotificationChannel(
+          channelKey: 'default_channel',
+          channelName: 'Default Notifications',
+          channelDescription: 'General notifications',
+          defaultColor: Colors.blue,
+          ledColor: Colors.white,
+          importance: NotificationImportance.High,
+          channelShowBadge: true,
+          playSound: true,
+          enableVibration: true,
+        ),
+        NotificationChannel(
+          channelKey: 'news_channel',
+          channelName: 'Breaking News',
+          channelDescription: 'Breaking news notifications',
+          defaultColor: Colors.red,
+          ledColor: Colors.red,
+          importance: NotificationImportance.Max,
+          channelShowBadge: true,
+          playSound: true,
+          enableVibration: true,
+        ),
+        NotificationChannel(
+          channelKey: 'match_channel',
+          channelName: 'Match Events',
+          channelDescription: 'Live match event notifications',
+          defaultColor: Colors.green,
+          ledColor: Colors.green,
+          importance: NotificationImportance.High,
+          channelShowBadge: true,
+          playSound: true,
+          enableVibration: true,
+        ),
+        NotificationChannel(
+          channelKey: 'podcast_channel',
+          channelName: 'Podcasts',
+          channelDescription: 'Live podcast notifications',
+          defaultColor: Colors.blue,
+          ledColor: Colors.blue,
+          importance: NotificationImportance.Default,
+          channelShowBadge: true,
+          playSound: true,
+          enableVibration: false,
+        ),
+      ],
+      debug: true,
+    );
+
+    // Set up notification action listeners
+    await _setupNotificationListeners();
+  }
+
+  // ────────────────────────────────────────────────
+  // 2. Setup notification tap listeners
+  // ────────────────────────────────────────────────
+  static Future<void> _setupNotificationListeners() async {
+    // Listen for notification taps
+    AwesomeNotifications().setListeners(
+      onActionReceivedMethod: _onActionReceivedMethod,
+      onNotificationCreatedMethod: _onNotificationCreatedMethod,
+      onNotificationDisplayedMethod: _onNotificationDisplayedMethod,
+      onDismissActionReceivedMethod: _onDismissActionReceivedMethod,
+    );
+  }
+
+  @pragma("vm:entry-point")
+  static Future<void> _onNotificationCreatedMethod(
+    ReceivedNotification receivedNotification
+  ) async {
+    debugPrint('📬 Notification Created: ${receivedNotification.id}');
+  }
+
+  @pragma("vm:entry-point")
+  static Future<void> _onNotificationDisplayedMethod(
+    ReceivedNotification receivedNotification
+  ) async {
+    debugPrint('📱 Notification Displayed: ${receivedNotification.id}');
+  }
+
+  @pragma("vm:entry-point")
+  static Future<void> _onDismissActionReceivedMethod(
+    ReceivedAction receivedAction
+  ) async {
+    debugPrint('🗑️ Notification Dismissed: ${receivedAction.id}');
+  }
+
+  @pragma("vm:entry-point")
+  static Future<void> _onActionReceivedMethod(
+    ReceivedAction receivedAction
+  ) async {
+    debugPrint('═══════════════════════════════════════════════════════════');
+    debugPrint('👆 NOTIFICATION TAPPED (Awesome Notifications)');
+    debugPrint('   Action ID: ${receivedAction.id}');
+    debugPrint('   Button Pressed: ${receivedAction.buttonKeyPressed}');
+    debugPrint('   Payload: ${receivedAction.payload}');
+    debugPrint('   Action Lifecycle: ${receivedAction.actionLifeCycle}');
+    debugPrint('═══════════════════════════════════════════════════════════');
+
+    final payload = receivedAction.payload ?? {};
+    
+    if (payload.isEmpty) {
+      debugPrint('❌ No payload in notification, navigating to home');
+      
+      // Add delay to ensure app is ready
+      await Future.delayed(const Duration(milliseconds: 500));
+      globalRouter.go('/home');
+      return;
+    }
+
+    // Generate and navigate to deep link
+    final type = (payload['type'] ?? '').toLowerCase();
+    final deepLink = _generateDeepLink(type, payload);
+    debugPrint('🔗 Navigating to deep link from notification tap: $deepLink');
+    
+    // Add delay to ensure app is fully initialized
+    await Future.delayed(const Duration(milliseconds: 500));
+    _navigateToDeepLink(deepLink);
+  }
+
+  // ────────────────────────────────────────────────
+  // ✅ NEW: Check for initial notification action (app launched from terminated state)
+  // ────────────────────────────────────────────────
+  static Future<void> checkInitialNotificationAction() async {
+    debugPrint('🔍 Checking for initial notification action...');
+    
+    // Get the initial notification action if app was opened from a notification
+    final ReceivedAction? receivedAction = await AwesomeNotifications()
+        .getInitialNotificationAction(removeFromActionEvents: true);
+    
+    if (receivedAction != null) {
+      debugPrint('═══════════════════════════════════════════════════════════');
+      debugPrint('🚀 APP LAUNCHED FROM NOTIFICATION (Terminated State)');
+      debugPrint('   Action ID: ${receivedAction.id}');
+      debugPrint('   Payload: ${receivedAction.payload}');
+      debugPrint('═══════════════════════════════════════════════════════════');
+      
+      // Process the notification action
+      await _onActionReceivedMethod(receivedAction);
+    } else {
+      debugPrint('ℹ️ No initial notification action found');
+    }
+  }
+
+  // ────────────────────────────────────────────────
+  // 3. Basic initialization (called early – no permission request)
   // ────────────────────────────────────────────────
   Future<void> initialize() async {
     if (_isInitialized) return;
 
-    // Handle foreground messages (FCM will still show notification)
+    // Handle foreground messages with awesome_notifications
     FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
 
     // Handle notification tap when app is in background/terminated
+    // (awesome_notifications will handle this via _onActionReceivedMethod)
     FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationTap);
 
     // Token refresh listener
@@ -55,9 +271,10 @@ class FCMService {
   }
 
   // ────────────────────────────────────────────────
-  // 2. Request permission & register token
+  // 4. Request permission & register token
   // ────────────────────────────────────────────────
   Future<void> requestPermissionAndRegisterToken() async {
+    // Request FCM permissions
     final settings = await _messaging.requestPermission(
       alert: true,
       badge: true,
@@ -65,7 +282,13 @@ class FCMService {
       provisional: false,
     );
 
-    debugPrint('📱 Notification permission: ${settings.authorizationStatus.name}');
+    debugPrint('📱 FCM permission: ${settings.authorizationStatus.name}');
+
+    // Request Awesome Notifications permissions
+    final isAllowed = await AwesomeNotifications().isNotificationAllowed();
+    if (!isAllowed) {
+      await AwesomeNotifications().requestPermissionToSendNotifications();
+    }
 
     if (settings.authorizationStatus == AuthorizationStatus.authorized ||
         settings.authorizationStatus == AuthorizationStatus.provisional) {
@@ -159,13 +382,14 @@ class FCMService {
       return;
     }
 
-    // FCM will show the notification automatically in foreground
-    debugPrint('✅ Notification will be shown by FCM');
+    // ✅ Show notification using awesome_notifications
+    await _showAwesomeNotification(message);
+    debugPrint('✅ Notification shown via Awesome Notifications');
   }
 
   void _handleNotificationTap(RemoteMessage message) {
     debugPrint('═══════════════════════════════════════════════════════════');
-    debugPrint('👆 NOTIFICATION TAPPED');
+    debugPrint('👆 NOTIFICATION TAPPED (FCM)');
     debugPrint('   Message ID: ${message.messageId}');
     debugPrint('   Data: ${message.data}');
     debugPrint('═══════════════════════════════════════════════════════════');
@@ -192,7 +416,7 @@ class FCMService {
   // ────────────────────────────────────────────────
   // ✅ DEEP LINK GENERATION
   // ────────────────────────────────────────────────
-  String _generateDeepLink(String type, Map<String, dynamic> data) {
+  static String _generateDeepLink(String type, Map<String, dynamic> data) {
     debugPrint('🔧 Generating deep link for type: $type');
     debugPrint('   Data: $data');
     
@@ -242,7 +466,7 @@ class FCMService {
   // ────────────────────────────────────────────────
   // ✅ DEEP LINK NAVIGATION
   // ────────────────────────────────────────────────
-  void _navigateToDeepLink(String deepLink) {
+  static void _navigateToDeepLink(String deepLink) {
     debugPrint('🚀 STARTING NAVIGATION TO DEEP LINK: $deepLink');
     
     try {
@@ -379,6 +603,7 @@ class FCMService {
   }
 }
 
+// Rest of the code (ensureBreakingNewsSubscription and FCMTopicManager) remains the same...
 // ────────────────────────────────────────────────
 // Auto-subscribe helper
 // ────────────────────────────────────────────────
