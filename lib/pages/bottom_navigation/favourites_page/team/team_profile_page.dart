@@ -20,6 +20,7 @@ import '../../../../components/dominant_color_generator.dart';
 import '../../../../localization/demo_localization.dart';
 import '../../../../main.dart';
 import '../../../../models/teamName.dart';
+import '../../../../services/analytics_service.dart';
 import '../../../constants/colors.dart';
 import '../../../constants/text_utils.dart';
 import '../favourites_page/player/matches_view/matches/matches_view.dart';
@@ -43,6 +44,7 @@ class _TeamProfilePageState extends State<TeamProfilePage>
   double _scrollOffset = 0;
   bool _isColorLoading = true;
 
+final FollowingAnalyticsService _analyticsService = FollowingAnalyticsService();
   @override
   bool get wantKeepAlive => true;
 
@@ -52,13 +54,23 @@ class _TeamProfilePageState extends State<TeamProfilePage>
     _tabController = TabController(length: 4, vsync: this);
     _scrollController.addListener(_onScroll);
 
-    // Fire BLoC event asynchronously to not block UI
+   // Fire BLoC event asynchronously to not block UI
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<FollowingBloc>().add(LoadFollowedTeams());
       context
           .read<FollowingBloc>()
           .add(CheckFollowingTeam(teamId: widget.teamName.id));
+    
+    // ✨ ADD THIS - Track team profile view
+      _analyticsService.logEvent(
+        name: 'team_profile_viewed',
+        parameters: {
+          'team_id': widget.teamName.id,
+          'team_name': widget.teamName.englishName,
+          'timestamp': DateTime.now().millisecondsSinceEpoch,
+        },
+      );
     });
-
     // Load color asynchronously with proper error handling
     _setBgColor();
   }
@@ -217,40 +229,83 @@ class _TeamProfilePageState extends State<TeamProfilePage>
     );
   }
 
-  Widget _buildFollowButton() {
-    return BlocBuilder<FollowingBloc, FollowingState>(
-      builder: (_, state) {
-        final isFollowing = state.status == Status.following ||
-            state.status == Status.followRequested;
+ Widget _buildFollowButton() {
+  return BlocBuilder<FollowingBloc, FollowingState>(
+    builder: (_, state) {
+      final isFollowing =
+          state.followedTeams.contains(widget.teamName.id);
 
-        return Padding(
-          padding: EdgeInsets.only(right: 12.w),
-          child: LikeButton(
-            size: 28.sp,
-            isLiked: isFollowing,
-            likeBuilder: (liked) => Icon(
-              liked ? Icons.favorite : Icons.favorite_border,
-              color: liked ? Colorscontainer.greenColor : Colors.white,
-            ),
-            onTap: (liked) async {
-              if (liked) {
-                context
-                    .read<FollowingBloc>()
-                    .add(RemoveFollowingTeam(teamId: widget.teamName.id));
-              } else {
-                context
-                    .read<FollowingBloc>()
-                    .add(FollowTeamRequested(teamId: widget.teamName.id));
-              }
-              return !liked;
-            },
+      return Padding(
+        padding: EdgeInsets.only(right: 12.w),
+        child: LikeButton(
+          size: 50, // slightly larger tap target
+          isLiked: isFollowing,
+          circleColor: CircleColor(
+            start: Colors.white,
+            end: Colorscontainer.greenColor,
           ),
-        );
-      },
-    );
-  }
+          bubblesColor: BubblesColor(
+            dotPrimaryColor: Colorscontainer.greenColor,
+            dotSecondaryColor: Colors.white,
+          ),
+          likeBuilder: (liked) {
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.black.withOpacity(0.25),
+                border: Border.all(
+                  color: liked
+                      ? Colors.white // ✅ white stroke when followed
+                      : Colors.white.withOpacity(0.25),
+                  width: liked ? 2 : 1.2,
+                ),
+                boxShadow: [
+                  if (liked)
+                    BoxShadow(
+                      color: Colorscontainer.greenColor.withOpacity(0.6),
+                      blurRadius: 12,
+                      spreadRadius: 1,
+                    ),
+                ],
+              ),
+              child: Icon(
+                liked ? Icons.favorite : Icons.favorite_border,
+                size: 30.sp,
+                color: liked
+                    ? Colorscontainer.greenColor
+                    : Colors.white.withOpacity(0.9),
+              ),
+            );
+          },
+          onTap: (liked) async {
+            final teamName = _getEnglishName(widget.teamName);
 
-  // ================= HELPERS =================
+            if (liked) {
+              context.read<FollowingBloc>().add(
+                RemoveFollowingTeam(
+                  teamId: widget.teamName.id,
+                  teamName: teamName,
+                ),
+              );
+            } else {
+              HapticFeedback.lightImpact();
+              context.read<FollowingBloc>().add(
+                FollowTeamRequested(
+                  teamId: widget.teamName.id,
+                  teamName: teamName,
+                ),
+              );
+            }
+            return !liked;
+          },
+        ),
+      );
+    },
+  );
+}
+ // ================= HELPERS =================
 
   String _getLocalizedName(TeamName team) {
     switch (localLanguageNotifier.value) {
@@ -264,6 +319,10 @@ class _TeamProfilePageState extends State<TeamProfilePage>
       default:
         return team.englishName;
     }
+  }
+
+  String _getEnglishName(TeamName team) {
+    return team.englishName;
   }
 }
 
@@ -367,31 +426,30 @@ class _TeamLogo extends StatelessWidget {
       tag: 'team_logo_${team.id}',
       child: CachedNetworkImage(
         imageUrl: team.logo,
-        height: 120.h,
-        width: 120.h,
+        height: 100.h, // Adjusted for the header
+        width: 100.h,
         fit: BoxFit.contain,
-        memCacheHeight:
-            (120.h * MediaQuery.of(context).devicePixelRatio).toInt(),
-        memCacheWidth:
-            (120.h * MediaQuery.of(context).devicePixelRatio).toInt(),
-        maxHeightDiskCache: 240,
-        maxWidthDiskCache: 240,
         placeholder: (_, __) => _buildShimmerLogo(),
+        // FIRST ERROR: Try API-Sports direct CDN
         errorWidget: (context, url, error) => CachedNetworkImage(
           imageUrl: 'https://media.api-sports.io/football/teams/${team.id}.png',
-          height: 120.h,
-          width: 120.h,
+          height: 100.h,
+          width: 100.h,
           fit: BoxFit.contain,
-          memCacheHeight:
-              (120.h * MediaQuery.of(context).devicePixelRatio).toInt(),
-          memCacheWidth:
-              (120.h * MediaQuery.of(context).devicePixelRatio).toInt(),
-          maxHeightDiskCache: 240,
-          maxWidthDiskCache: 240,
           placeholder: (_, __) => _buildShimmerLogo(),
-          errorWidget: (_, __, ___) => const Icon(
-            Icons.broken_image_outlined,
-            size: 48,
+          // SECOND ERROR: The final Shield Icon
+          errorWidget: (_, __, ___) => Container(
+            height: 100.h,
+            width: 100.h,
+            decoration: BoxDecoration(
+              color: Colors.white10,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.shield,
+              size: 50.sp,
+              color: Colors.white54,
+            ),
           ),
         ),
       ),
@@ -400,20 +458,19 @@ class _TeamLogo extends StatelessWidget {
 
   Widget _buildShimmerLogo() {
     return Shimmer.fromColors(
-      baseColor: Colors.grey.shade300,
-      highlightColor: Colors.grey.shade100,
+      baseColor: Colors.white10,
+      highlightColor: Colors.white24,
       child: Container(
-        height: 72.h,
-        width: 72.h,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(18.r),
+        height: 100.h,
+        width: 100.h,
+        decoration: const BoxDecoration(
+          color: Colors.black,
+          shape: BoxShape.circle,
         ),
       ),
     );
   }
 }
-
 class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
   final Widget child;
   _SliverTabBarDelegate(this.child);

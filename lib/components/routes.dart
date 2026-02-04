@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:firebase_analytics/observer.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -49,6 +51,7 @@ Future<bool> checkLoggedIn() async {
 
 GoRouter createRoute(String initialLocation) {
   return GoRouter(
+    observers: [FirebaseAnalyticsObserver(analytics: FirebaseAnalytics.instance)],
     initialLocation: initialLocation,
     navigatorKey: GlobalKey<NavigatorState>(debugLabel: 'rootNavigator'),
     debugLogDiagnostics: true,

@@ -17,6 +17,7 @@ import '../../../application/following/following_state.dart';
 import '../../../application/persistent_player/persistent_player_bloc.dart';
 import '../../../application/persistent_player/persistent_player_event.dart';
 import '../../../models/playlist/playlist_model.dart';
+import '../../../services/analytics_service.dart';
 import '../../../services/service_locator.dart';
 import '../../constants/colors.dart';
 import '../../constants/text_utils.dart';
@@ -64,6 +65,8 @@ class _ProgramState extends State<Program> with SingleTickerProviderStateMixin {
   bool isLive = false;
   OverlayEntry? overlayEntry;
 
+  final FollowingAnalyticsService _analyticsService = FollowingAnalyticsService();
+
   @override
   void initState() {
     super.initState();
@@ -82,10 +85,21 @@ class _ProgramState extends State<Program> with SingleTickerProviderStateMixin {
         .read<FollowingBloc>()
         .add(CheckFollowingPodcast(podcastId: widget.id));
 
+    // ✨ ADD THIS - Track podcast view
+    _analyticsService.logEvent(
+      name: 'podcast_viewed',
+      parameters: {
+        'podcast_id': widget.id,
+        'podcast_name': widget.name,
+        'program_id': widget.programId,
+        'is_live': widget.isProgram,
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      },
+    );
+
     _generateDominantColor();
     if (widget.time.isNotEmpty) {
-     isLive = widget.isProgram;
-
+      isLive = widget.isProgram;
     }
   }
 
@@ -126,13 +140,7 @@ class _ProgramState extends State<Program> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    final mediaItems = MediaItem(
-      id: widget.id,
-      album: widget.station,
-      title: widget.name,
-      artist: widget.program,
-      artUri: Uri.parse(widget.avatar),
-    );
+
 
     return Theme(
       data: Theme.of(context).copyWith(
@@ -190,7 +198,7 @@ onPressed: () {
   } else {
     // If opened from terminated state, the stack is empty.
     // Force navigation to the Enadamt list page.
-    context.go('/enadamt'); 
+    context.go('/home'); 
   }
 },                      ),
                     ),
@@ -373,8 +381,9 @@ onPressed: () {
       builder: (context, state) {
         bool isFollowing = state.status == Status.following ||
             state.status == Status.followRequested;
+
         return LikeButton(
-          size: 30.r,
+          size: 42, // better tap target
           isLiked: isFollowing,
           circleColor: CircleColor(
             start: Colors.white,
@@ -387,10 +396,34 @@ onPressed: () {
           onTap: (isLiked) async =>
               _handleNotificationPermission(isLiked, context),
           likeBuilder: (isLiked) {
-            return Icon(
-              CupertinoIcons.bell_fill,
-              color: isLiked ? Colorscontainer.greenColor : Colors.white,
-              size: 24.r,
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              padding: const EdgeInsets.all(9),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.black.withOpacity(0.25),
+                border: Border.all(
+                  color: isLiked
+                      ? Colors.white // ✅ white stroke when active
+                      : Colors.white.withOpacity(0.25),
+                  width: isLiked ? 2 : 1.2,
+                ),
+                boxShadow: [
+                  if (isLiked)
+                    BoxShadow(
+                      color: Colorscontainer.greenColor.withOpacity(0.6),
+                      blurRadius: 14,
+                      spreadRadius: 1,
+                    ),
+                ],
+              ),
+              child: Icon(
+                CupertinoIcons.bell_fill,
+                color: isLiked
+                    ? Colorscontainer.greenColor
+                    : Colors.white.withOpacity(0.9),
+                size: 22.r,
+              ),
             );
           },
         );
@@ -399,44 +432,63 @@ onPressed: () {
   );
 }
 
-// Update _handleNotificationPermission to pass programId:
-Future<bool> _handleNotificationPermission(
-    bool isLiked, BuildContext context) async {
-  var status = await Permission.notification.status;
-  if (!status.isGranted) {
-    final requestStatus = await Permission.notification.request();
-    if (requestStatus.isPermanentlyDenied) {
-      AppSettings.openAppSettings(type: AppSettingsType.notification);
+  // 4. UPDATE _handleNotificationPermission to pass programId and add analytics:
+  Future<bool> _handleNotificationPermission(
+      bool isLiked, BuildContext context) async {
+    var status = await Permission.notification.status;
+    
+    if (!status.isGranted) {
+      // ✨ ADD THIS - Track permission request
+      await _analyticsService.logNotificationPermissionRequested('podcast_follow');
+      
+      final requestStatus = await Permission.notification.request();
+      
+      // ✨ ADD THIS - Track permission result
+      if (requestStatus.isGranted) {
+        await _analyticsService.logNotificationPermissionGranted('podcast_follow');
+      } else {
+        await _analyticsService.logNotificationPermissionDenied('podcast_follow');
+      }
+      
+      if (requestStatus.isPermanentlyDenied) {
+        AppSettings.openAppSettings(type: AppSettingsType.notification);
+      }
+      
+      // Update status after request
+      status = await Permission.notification.status;
     }
-  }
 
-  if (status.isGranted) {
-    if (isLiked) {
-      context.read<FollowingBloc>().add(
-            RemoveFollowingPodcast(
-              podcastId: widget.id,
-              programId: widget.programId, // ✨ ADD THIS - you need to add programId to Program widget
-            ),
-          );
+    if (status.isGranted) {
+      if (isLiked) {
+        // ✨ UPDATED - Add programId and podcastName for analytics
+        context.read<FollowingBloc>().add(
+              RemoveFollowingPodcast(
+                podcastId: widget.id,
+                programId: widget.programId,
+                podcastName: widget.name, // ✨ ADD THIS
+              ),
+            );
+      } else {
+        // ✨ UPDATED - Add programId and podcastName for analytics
+        context.read<FollowingBloc>().add(
+              FollowPodcastRequested(
+                podcastId: widget.id,
+                programId: widget.programId,
+                podcastName: widget.name, // ✨ ADD THIS
+              ),
+            );
+      }
+      return !isLiked;
     } else {
-      context.read<FollowingBloc>().add(
-            FollowPodcastRequested(
-              podcastId: widget.id,
-              programId: widget.programId, // ✨ ADD THIS - you need to add programId to Program widget
-            ),
-          );
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Notification permission is required to follow podcasts.'),
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return isLiked;
     }
-    return !isLiked;
-  } else {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Notification permission is required to follow podcasts.'),
-        duration: Duration(seconds: 3),
-      ),
-    );
-    return isLiked;
   }
-}
   Widget _buildDescriptionSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

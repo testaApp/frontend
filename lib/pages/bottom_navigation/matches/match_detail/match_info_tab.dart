@@ -284,15 +284,23 @@ class _MatchInfoTabState extends State<MatchInfoTab> {
             Row(
               children: [
                 CachedNetworkImage(
-                  height: 24.h,
-                  width: 24.w,
-                  imageUrl: teamLogo,
-                  errorWidget: (_, __, ___) => Icon(
-                    Icons.shield,
-                    size: 24.sp,
-                    color: Colors.grey,
-                  ),
-                ),
+  height: 24.h,
+  width: 24.w,
+  imageUrl: teamLogo,
+  fit: BoxFit.contain,
+  errorWidget: (context, url, error) => CachedNetworkImage(
+    imageUrl: "https://media.api-sports.io/football/teams/${teamId}.png",
+    height: 24.h,
+    width: 24.w,
+    fit: BoxFit.contain,
+    // Final fallback to the Icon
+    errorWidget: (_, __, ___) => Icon(
+      Icons.shield,
+      size: 24.sp,
+      color: Colors.grey,
+    ),
+  ),
+),
                 SizedBox(width: 10.w),
                 Expanded(
                   child: Text(

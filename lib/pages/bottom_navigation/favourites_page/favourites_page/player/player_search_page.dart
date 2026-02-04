@@ -10,8 +10,6 @@ import '../../../../../application/favourite_player/PlayerSelection_state.dart';
 import '../../../../../application/following/following_bloc.dart';
 import '../../../../../application/following/following_event.dart';
 import '../../../../../application/following/following_state.dart';
-import '../../../../../../../../bloc/mirchaweche/my_fav/my_fav_player/myfavourite_players_bloc.dart';
-import '../../../../../bloc/mirchaweche/my_fav/my_fav_player/myfavourite_players_event.dart';
 import '../../../../../domain/player/Players_for_selection_model.dart';
 import '../../../../../../../../main.dart';
 import '../../../../../localization/demo_localization.dart';
@@ -87,11 +85,12 @@ class PlayerSearchDelegate extends SearchDelegate<String> {
       });
     }
 
+    context.read<FollowingBloc>().add(LoadFollowedPlayers());
+
     return MultiBlocProvider(
       providers: [
         BlocProvider.value(value: context.read<PlayerSelectionBloc>()),
         BlocProvider.value(value: context.read<FollowingBloc>()),
-        BlocProvider.value(value: context.read<MyfavouritePlayersBloc>()),
       ],
       child: BlocBuilder<PlayerSelectionBloc, PlayerSelectionState>(
         builder: (context, state) {
@@ -133,41 +132,24 @@ class _PlayerTile extends StatefulWidget {
 
 class _PlayerTileState extends State<_PlayerTile> {
   StreamSubscription? _followingSubscription;
-  StreamSubscription? _favListSubscription;
   bool? _optimisticFav;
   bool _isProcessing = false;
 
   @override
   void dispose() {
     _followingSubscription?.cancel();
-    _favListSubscription?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final favState = context.watch<MyfavouritePlayersBloc>().state;
-    final bool isFavFromServer =
-        favState.players.any((p) => p.id == widget.player.id);
+    final followingState = context.watch<FollowingBloc>().state;
+    final bool isFavFromLocal =
+        followingState.followedPlayers.contains(widget.player.id);
 
-    final bool currentFav = _optimisticFav ?? isFavFromServer;
+    final bool currentFav = _optimisticFav ?? isFavFromLocal;
 
-    final lang = localLanguageNotifier.value;
-    final pName = switch (lang) {
-      'am' => widget.player.amharicName,
-      'tr' => widget.player.amharicName, // if you want Turkish to show Amharic
-      'om' => widget.player.oromoName,
-      'so' => widget.player.somaliName,
-      _ => widget.player.englishName,
-    };
-
-    final teamName = switch (localLanguageNotifier.value) {
-      'am' => widget.player.team.amharicName,
-      'tr' => widget.player.team.amharicName, // if needed
-      'om' => widget.player.team.oromoName,
-      'so' => widget.player.team.somaliName,
-      _ => widget.player.team.englishName,
-    };
+    final pName = _localizedName();
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 180),
@@ -255,7 +237,6 @@ class _PlayerTileState extends State<_PlayerTile> {
 
   void _handleToggle(BuildContext context, bool currentStatus) {
     final followingBloc = context.read<FollowingBloc>();
-    final myFavBloc = context.read<MyfavouritePlayersBloc>();
     final bool targetStatus = !currentStatus;
 
     setState(() {
@@ -263,37 +244,53 @@ class _PlayerTileState extends State<_PlayerTile> {
       _optimisticFav = targetStatus;
     });
 
-    followingBloc.emit(
-      followingBloc.state.copyWith(
-        status: currentStatus ? Status.following : Status.notFollowing,
-      ),
-    );
-
-    followingBloc.add(ToggleFollowPlayer(playerId: widget.player.id));
+    followingBloc.add(ToggleFollowPlayer(
+      playerId: widget.player.id,
+      playerName: _englishName(),
+    ));
 
     _followingSubscription?.cancel();
     _followingSubscription = followingBloc.stream.listen((state) {
       if (state.status == Status.following ||
           state.status == Status.notFollowing ||
-          state.status == Status.error) {
-        myFavBloc.add(MyfavouritePlayersRequested());
+          state.status == Status.error ||
+          state.status == Status.networkError ||
+          state.status == Status.serverError ||
+          state.status == Status.unknownError) {
+        final bool hasPlayer =
+            state.followedPlayers.contains(widget.player.id);
 
-        _favListSubscription?.cancel();
-        _favListSubscription = myFavBloc.stream.listen((favState) {
-          final bool serverHasPlayer =
-              favState.players.any((p) => p.id == widget.player.id);
-
-          if (serverHasPlayer == targetStatus && mounted) {
-            setState(() {
-              _optimisticFav = null;
-              _isProcessing = false;
-            });
-            _favListSubscription?.cancel();
-          }
-        });
-        _followingSubscription?.cancel();
+        if (hasPlayer == targetStatus ||
+            state.status == Status.error ||
+            state.status == Status.networkError ||
+            state.status == Status.serverError ||
+            state.status == Status.unknownError) {
+          if (!mounted) return;
+          setState(() {
+            _optimisticFav = null;
+            _isProcessing = false;
+          });
+          _followingSubscription?.cancel();
+        }
       }
     });
+  }
+
+  String _localizedName() {
+    final lang = localLanguageNotifier.value;
+    return switch (lang) {
+      'am' => widget.player.amharicName,
+      'tr' => widget.player.amharicName,
+      'om' => widget.player.oromoName,
+      'so' => widget.player.somaliName,
+      _ => widget.player.englishName,
+    };
+  }
+
+  String _englishName() {
+    return widget.player.englishName.isNotEmpty
+        ? widget.player.englishName
+        : _localizedName();
   }
 }
 

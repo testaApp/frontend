@@ -104,7 +104,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
         child: Text(
           text,
           style: TextUtils.setTextStyle(
-            fontSize: 12.sp,
+            fontSize: 14.sp,
           ),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,

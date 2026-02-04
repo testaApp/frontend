@@ -6,6 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
 
 import '../../application/favourite_player/PlayerSelection_bloc.dart';
 import '../../application/favourite_player/PlayerSelection_event.dart';
@@ -66,11 +67,25 @@ class _PlayerListState extends State<ChooseFavPlayerEntry>
     }
   }
 
-  void toggleSelection(int playerId) {
-    context
-        .read<PlayerSelectionBloc>()
-        .add(TogglePlayerSelectionRequested(playerId: playerId));
+ void toggleSelection(int playerId) {
+  final playerState = context.read<PlayerSelectionBloc>().state;
+  final isSelecting = !playerState.selectedPlayerIds.contains(playerId);
+
+  if (isSelecting) {
+    // Log the follow event
+    FirebaseAnalytics.instance.logEvent(
+      name: 'follow_player',
+      parameters: {
+        'player_id': playerId,
+        'screen': 'onboarding_entry',
+      },
+    );
   }
+
+  context
+      .read<PlayerSelectionBloc>()
+      .add(TogglePlayerSelectionRequested(playerId: playerId));
+}
 
   Future<void> _refresh() async {
     context.read<PlayerSelectionBloc>().add(FetchPlayersRequested());

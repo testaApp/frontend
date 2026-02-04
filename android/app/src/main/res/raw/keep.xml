@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools" tools:keep="@raw/goal" />
-<resources xmlns:tools="http://schemas.android.com/tools" tools:keep="@raw/default_music" />
-<resources xmlns:tools="http://schemas.android.com/tools" tools:keep="@raw/third" />
+<resources xmlns:tools="http://schemas.android.com/tools" tools:keep="@raw/thipodcast_liverd" />
+<resources xmlns:tools="http://schemas.android.com/tools" tools:keep="@raw/gamestart" />
+<resources xmlns:tools="http://schemas.android.com/tools" tools:keep="@raw/breaking_news" />
+

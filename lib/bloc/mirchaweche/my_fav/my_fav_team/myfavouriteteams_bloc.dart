@@ -73,6 +73,8 @@ class MyfavouriteteamsBloc
             id: json['id']);
         teams.add(team);
       }
+      final teamIds = teams.map((t) => t.id).toList();
+      await globalStorageService.syncFromServer(teams: teamIds);
       emit(state.copyWith(status: favTeamStatus.success, teams: teams));
     } else {
       emit(state.copyWith(status: favTeamStatus.failure));

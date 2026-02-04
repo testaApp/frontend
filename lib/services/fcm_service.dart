@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:awesome_notifications/awesome_notifications.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -29,15 +30,14 @@ Future<void> _showAwesomeNotification(RemoteMessage message) async {
   final notification = message.notification;
   final data = message.data;
 
-  // Extract notification details
   final title = notification?.title ?? data['title'] ?? 'Testa';
   final body = notification?.body ?? data['body'] ?? '';
   final imageUrl = notification?.android?.imageUrl ?? 
                    notification?.apple?.imageUrl ?? 
                    data['image'];
 
-  // Determine notification type for proper icon/color
   final type = (data['type'] as String? ?? '').toLowerCase();
+  final subtype = (data['subtype'] as String? ?? '').toLowerCase(); // Add this
   
   String channelKey;
   Color color;
@@ -49,16 +49,26 @@ Future<void> _showAwesomeNotification(RemoteMessage message) async {
       color = Colors.red;
       category = NotificationCategory.Social;
       break;
+    
     case 'matchevent':
-      channelKey = 'match_channel';
       color = Colors.green;
       category = NotificationCategory.Event;
+      // Logic to switch sounds based on subtype
+      if (subtype == 'goals') {
+        channelKey = 'match_goal_channel';
+      } else if (subtype == 'started' || subtype == 'fulltime') {
+        channelKey = 'match_start_channel';
+      } else {
+        channelKey = 'match_channel'; // Default soccer kick sound
+      }
       break;
+
     case 'podcastlive':
       channelKey = 'podcast_channel';
       color = Colors.blue;
       category = NotificationCategory.Service;
       break;
+    
     default:
       channelKey = 'default_channel';
       color = Colors.grey;
@@ -68,7 +78,7 @@ Future<void> _showAwesomeNotification(RemoteMessage message) async {
   await AwesomeNotifications().createNotification(
     content: NotificationContent(
       id: DateTime.now().millisecondsSinceEpoch.remainder(100000),
-      channelKey: channelKey,
+      channelKey: channelKey, // Now uses the specific channel
       title: title,
       body: body,
       bigPicture: imageUrl,
@@ -78,12 +88,10 @@ Future<void> _showAwesomeNotification(RemoteMessage message) async {
       payload: data.map((key, value) => MapEntry(key, value.toString())),
       category: category,
       color: color,
-      backgroundColor: color,
       largeIcon: 'resource://drawable/testaapp',
     ),
   );
 }
-
 // ────────────────────────────────────────────────
 /// Central service for Firebase Cloud Messaging
 // ────────────────────────────────────────────────
@@ -102,62 +110,79 @@ class FCMService {
   // ────────────────────────────────────────────────
   // 1. Initialize Awesome Notifications
   // ────────────────────────────────────────────────
-  static Future<void> initializeAwesomeNotifications() async {
-    await AwesomeNotifications().initialize(
-      'resource://drawable/testaapp', // Your app icon
-      [
-        NotificationChannel(
-          channelKey: 'default_channel',
-          channelName: 'Default Notifications',
-          channelDescription: 'General notifications',
-          defaultColor: Colors.blue,
-          ledColor: Colors.white,
-          importance: NotificationImportance.High,
-          channelShowBadge: true,
-          playSound: true,
-          enableVibration: true,
-        ),
-        NotificationChannel(
-          channelKey: 'news_channel',
-          channelName: 'Breaking News',
-          channelDescription: 'Breaking news notifications',
-          defaultColor: Colors.red,
-          ledColor: Colors.red,
-          importance: NotificationImportance.Max,
-          channelShowBadge: true,
-          playSound: true,
-          enableVibration: true,
-        ),
-        NotificationChannel(
-          channelKey: 'match_channel',
-          channelName: 'Match Events',
-          channelDescription: 'Live match event notifications',
-          defaultColor: Colors.green,
-          ledColor: Colors.green,
-          importance: NotificationImportance.High,
-          channelShowBadge: true,
-          playSound: true,
-          enableVibration: true,
-        ),
-        NotificationChannel(
-          channelKey: 'podcast_channel',
-          channelName: 'Podcasts',
-          channelDescription: 'Live podcast notifications',
-          defaultColor: Colors.blue,
-          ledColor: Colors.blue,
-          importance: NotificationImportance.Default,
-          channelShowBadge: true,
-          playSound: true,
-          enableVibration: false,
-        ),
-      ],
-      debug: true,
-    );
+static Future<void> initializeAwesomeNotifications() async {
+  await AwesomeNotifications().initialize(
+    'resource://drawable/testaapp',
+    [
+      // 1. Default Channel
+      NotificationChannel(
+        channelKey: 'default_channel',
+        channelName: 'General Notifications',
+        channelDescription: 'Default app notifications',
+        defaultColor: Colors.blue,
+        importance: NotificationImportance.High,
+        playSound: false,
+      ),
+      // 2. Breaking News
+      NotificationChannel(
+        channelKey: 'news_channel',
+        channelName: 'Breaking News',
+        channelDescription: 'Urgent news alerts',
+        defaultColor: Colors.red,
+        importance: NotificationImportance.Max,
+        playSound: true,
+        soundSource: 'resource://raw/breaking_news',
+        vibrationPattern: Int64List.fromList([0, 500, 200, 500]),
+      ),
+      // 3. Match Events - GOALS (Specific Sound)
+      NotificationChannel(
+        channelKey: 'match_goal_channel',
+        channelName: 'Match Goals',
+        channelDescription: 'Alerts for when a goal is scored',
+        defaultColor: Colors.green,
+        importance: NotificationImportance.Max,
+        playSound: true,
+        soundSource: 'resource://raw/goal', 
+        vibrationPattern: Int64List.fromList([0, 1000, 200, 1000]),
+        
+      ),
+      // 4. Match Events - Start/End (Specific Sound)
+      NotificationChannel(
+        channelKey: 'match_start_channel',
+        channelName: 'Match Start & Finish',
+        channelDescription: 'Whistle alerts for match start/end',
+        defaultColor: Colors.green,
+        importance: NotificationImportance.Max,
+        playSound: true,
+        soundSource: 'resource://raw/gamestart',
+        vibrationPattern: Int64List.fromList([0, 500, 200, 500]),
+      ),
+      // 5. Match Events - General (Substitutions, Cards, etc.)
+      NotificationChannel(
+        channelKey: 'match_channel',
+        channelName: 'Other Match Events',
+        channelDescription: 'Updates for cards and substitutions',
+        defaultColor: Colors.green,
+        importance: NotificationImportance.High,
+        playSound: true,
+        soundSource: 'resource://raw/soccer_ball_kick_default',
+      ),
+      // 6. Podcasts
+      NotificationChannel(
+        channelKey: 'podcast_channel',
+        channelName: 'Podcasts',
+        channelDescription: 'Live podcast alerts',
+        defaultColor: Colors.blue,
+        importance: NotificationImportance.High,
+        playSound: false,
+        soundSource: 'resource://raw/podcast_live', // Matches your raw file
+      ),
+    ],
+    debug: true,
+  );
 
-    // Set up notification action listeners
-    await _setupNotificationListeners();
-  }
-
+  await _setupNotificationListeners();
+}
   // ────────────────────────────────────────────────
   // 2. Setup notification tap listeners
   // ────────────────────────────────────────────────

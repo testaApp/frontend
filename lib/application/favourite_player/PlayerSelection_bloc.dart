@@ -1,16 +1,21 @@
 import 'dart:convert';
 import 'package:bloc/bloc.dart';
-import 'package:hive_flutter/adapters.dart';
 import 'package:http/http.dart' as http;
 
 import '../../domain/player/Players_for_selection_model.dart';
+import '../../services/following_storage_service.dart';
 import '../../util/baseUrl.dart';
 import 'PlayerSelection_event.dart';
 import 'PlayerSelection_state.dart';
 
 class PlayerSelectionBloc
     extends Bloc<PlayerSelectionEvent, PlayerSelectionState> {
-  PlayerSelectionBloc() : super(const PlayerSelectionState()) {
+  final FollowingStorageService _storageService;
+
+  PlayerSelectionBloc({
+    required FollowingStorageService storageService,
+  })  : _storageService = storageService,
+        super(const PlayerSelectionState()) {
     on<FetchPlayersRequested>(_handleFetchPlayers);
     on<LoadMorePlayersRequested>(_handleLoadMorePlayers);
     on<FetchPopularPlayersRequested>(_handleFetchPopularPlayers);
@@ -33,10 +38,7 @@ class PlayerSelectionBloc
     ));
 
     // Load previously saved favorite player IDs
-    final favPlayersBox = await Hive.openBox<List<int>>('favPlayersBox');
-    final initialFavIds =
-        favPlayersBox.get('favPlayersId', defaultValue: <int>[])?.cast<int>() ??
-            [];
+    final initialFavIds = _storageService.getFollowedPlayers();
 
     const int initialPage = 1; // Most APIs start at page 1
     const int pageSize = 100;
@@ -170,6 +172,7 @@ class PlayerSelectionBloc
   Future<void> _handleToggleSelection(TogglePlayerSelectionRequested event,
       Emitter<PlayerSelectionState> emit) async {
     // Create a NEW list instance to ensure Bloc detects the state change
+    final wasSelected = state.selectedPlayerIds.contains(event.playerId);
     final updatedList = List<int>.from(state.selectedPlayerIds);
 
     if (updatedList.contains(event.playerId)) {
@@ -178,9 +181,15 @@ class PlayerSelectionBloc
       updatedList.add(event.playerId);
     }
 
-    // Persist to Hive
-    final favPlayersBox = await Hive.openBox<List<int>>('favPlayersBox');
-    await favPlayersBox.put('favPlayersId', updatedList);
+    // Persist locally using FollowingStorageService (no backend sync here)
+    await _storageService.syncFromServer(players: updatedList);
+    if (wasSelected) {
+      await _storageService.removeFollowedPlayerName(event.playerId);
+    } else {
+      final player = _findPlayerById(event.playerId);
+      final englishName = player?.englishName ?? '';
+      await _storageService.setFollowedPlayerName(event.playerId, englishName);
+    }
 
     // Emit the new state with the updated list
     emit(state.copyWith(selectedPlayerIds: updatedList));
@@ -190,17 +199,29 @@ class PlayerSelectionBloc
       Emitter<PlayerSelectionState> emit) async {
     final updatedList = List<int>.from(state.selectedPlayerIds);
     if (updatedList.remove(event.playerId)) {
-      final favPlayersBox = await Hive.openBox<List<int>>('favPlayersBox');
-      await favPlayersBox.put('favPlayersId', updatedList);
+      await _storageService.syncFromServer(players: updatedList);
+      await _storageService.removeFollowedPlayerName(event.playerId);
       emit(state.copyWith(selectedPlayerIds: updatedList));
     }
   }
 
   Future<void> _handleClearAll(ClearAllSelectionsRequested event,
       Emitter<PlayerSelectionState> emit) async {
-    final favPlayersBox = await Hive.openBox<List<int>>('favPlayersBox');
-    await favPlayersBox.put('favPlayersId', <int>[]);
+    await _storageService.syncFromServer(players: <int>[]);
 
     emit(state.copyWith(selectedPlayerIds: const []));
+  }
+
+  PlayerSelectionModel? _findPlayerById(int playerId) {
+    for (final player in state.searchResults) {
+      if (player.id == playerId) return player;
+    }
+    for (final player in state.players) {
+      if (player.id == playerId) return player;
+    }
+    for (final player in state.popularPlayers) {
+      if (player.id == playerId) return player;
+    }
+    return null;
   }
 }

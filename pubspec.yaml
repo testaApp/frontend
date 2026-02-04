@@ -60,6 +60,7 @@ dependencies:
   firebase_messaging: ^16.1.1
   firebase_analytics: ^12.1.1
   firebase_in_app_messaging: ^0.9.0+6
+  firebase_auth: ^6.1.4
   
   # Database & Storage
   hive: ^2.2.3

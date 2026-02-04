@@ -6,7 +6,7 @@
         <item name="android:windowDrawsSystemBarBackgrounds">true</item>
         <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
         <item name="android:windowSplashScreenBackground">#068657</item>
-        <item name="android:windowSplashScreenAnimatedIcon">@drawable/android12splash</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/testa_logo_transparent</item>
         <item name="android:windowSplashScreenIconBackgroundColor">#068657</item>
     </style>
     <style name="NormalTheme" parent="@android:style/Theme.Black.NoTitleBar">

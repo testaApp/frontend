@@ -22,6 +22,36 @@ class DemoLocalizations {
     final localizationData = _box.get('$languageCode-$key');
     return localizationData?.value ?? '';
   }
+
+  static String get week {
+    final languageCode = localLanguageNotifier.value;
+    final localizationData = _box.get('$languageCode-week');
+    return localizationData?.value ?? 'Week';
+  }
+
+  static String get groupStage {
+    final languageCode = localLanguageNotifier.value;
+    final localizationData = _box.get('$languageCode-groupStage');
+    return localizationData?.value ?? 'Group Stage';
+  }
+
+  static String get leg {
+    final languageCode = localLanguageNotifier.value;
+    final localizationData = _box.get('$languageCode-leg');
+    return localizationData?.value ?? 'Leg';
+  }
+
+  static String get qualifying {
+    final languageCode = localLanguageNotifier.value;
+    final localizationData = _box.get('$languageCode-qualifying');
+    return localizationData?.value ?? 'Qualifying';
+  }
+
+  static String get playOff {
+    final languageCode = localLanguageNotifier.value;
+    final localizationData = _box.get('$languageCode-playOff');
+    return localizationData?.value ?? 'Play-off';
+  }
 // === Statistics Getters ===
 
   static String get cleanSheet {

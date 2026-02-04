@@ -1,10 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:hive/hive.dart';
-import 'package:path_provider/path_provider.dart';
 import '../../localization/demo_localization.dart';
 import '../../main.dart';
 import '../../util/baseUrl.dart';
@@ -42,7 +42,6 @@ class TeamListPageEntry extends StatefulWidget {
 class _TeamListPageState extends State<TeamListPageEntry> {
   late Future<List<FavTeamsData>> _teams;
   Set<int> _selectedIndices = {};
-  late Box<int> favteamBox;
   Set<int> favteamIDs = {};
   final ScrollController _scrollController = ScrollController();
   int _visibleItemCount = 20;
@@ -58,8 +57,8 @@ class _TeamListPageState extends State<TeamListPageEntry> {
 
   /// Initialize all data in sequence to avoid multiple rebuilds
   Future<void> _initializeData() async {
-    // Initialize Hive without triggering setState
-    await _initHive();
+    // Initialize local selections without triggering setState
+    await _initSelections();
 
     // Set up teams future
     _teams = fetchTeams(widget.categoryUrl);
@@ -84,19 +83,33 @@ class _TeamListPageState extends State<TeamListPageEntry> {
     return url;
   }
 
-  Future<void> _initHive() async {
-    final appDocumentDir = await getApplicationDocumentsDirectory();
-    Hive.init(appDocumentDir.path);
-    favteamBox = await Hive.openBox<int>('team');
-
-    // Store values without setState
-    favteamIDs = favteamBox.values.toSet();
-    _updateSelectedItemsNotifier();
+  Future<void> _initSelections() async {
+    favteamIDs = globalStorageService.getFollowedTeams().toSet();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _updateSelectedItemsNotifier();
+    });
   }
 
   void _updateSelectedItemsNotifier() {
-    selectedItemsNotifier.value = favteamIDs;
-    SelectedCountNotifier.selectedCount.value = favteamIDs.length;
+    void update() {
+      selectedItemsNotifier.value = favteamIDs;
+      SelectedCountNotifier.selectedCount.value = favteamIDs.length;
+    }
+
+    final phase = SchedulerBinding.instance.schedulerPhase;
+    final inBuildPhase = phase == SchedulerPhase.persistentCallbacks ||
+        phase == SchedulerPhase.transientCallbacks ||
+        phase == SchedulerPhase.midFrameMicrotasks;
+    if (inBuildPhase) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        update();
+      });
+      return;
+    }
+
+    update();
   }
 
   Future<List<FavTeamsData>> fetchTeams(String categoryUrl) async {
@@ -354,14 +367,21 @@ class _TeamListPageState extends State<TeamListPageEntry> {
       int teamId = team.teamId;
       if (favteamIDs.contains(teamId)) {
         favteamIDs.remove(teamId);
-        favteamBox.delete(teamId);
       } else {
         favteamIDs.add(teamId);
-        favteamBox.put(teamId, teamId);
       }
-      _updateSelectedItemsNotifier();
     });
-    widget.onUpdateSelectedIndices(favteamIDs.toList());
+    final updatedTeams = favteamIDs.toList();
+    unawaited(globalStorageService.syncFromServer(teams: updatedTeams));
+    if (favteamIDs.contains(team.teamId)) {
+      unawaited(
+        globalStorageService.setFollowedTeamName(team.teamId, team.name),
+      );
+    } else {
+      unawaited(globalStorageService.removeFollowedTeamName(team.teamId));
+    }
+    _updateSelectedItemsNotifier();
+    widget.onUpdateSelectedIndices(updatedTeams);
   }
 
   Widget _buildTeamLogo(String logoUrl) {

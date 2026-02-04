@@ -4,11 +4,11 @@ import 'package:app_settings/app_settings.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:intl/intl.dart';
 import 'package:like_button/like_button.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -28,6 +28,7 @@ import '../../../components/timeFormatter.dart';
 import '../../../localization/demo_localization.dart';
 import '../../../models/fixtures/stat.dart';
 import '../../../models/teamName.dart';
+import '../../../services/analytics_service.dart';
 import 'match_detail/match_info_tab.dart';
 import 'match_detail/head_to_head.dart';
 import 'match_detail/lineups.dart';
@@ -47,7 +48,6 @@ class MatchDetailsPage extends StatefulWidget {
   @override
   _MatchDetailsPageState createState() => _MatchDetailsPageState();
 }
-
 class _MatchDetailsPageState extends State<MatchDetailsPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
@@ -57,6 +57,8 @@ class _MatchDetailsPageState extends State<MatchDetailsPage>
   bool? conditionTwo;
   Stat? fetchedMatch;
   Timer? _countdownTimer;
+  final FollowingAnalyticsService _analyticsService = FollowingAnalyticsService();
+
 
   @override
   void initState() {
@@ -75,6 +77,14 @@ class _MatchDetailsPageState extends State<MatchDetailsPage>
       context
           .read<FixtureeventBloc>()
           .add(FixtureEventsRequested(fixtureId: widget.stat!.fixtureId));
+      
+      // ADD ANALYTICS TRACKING
+      _analyticsService.logMatchDetailsViewed(
+        widget.stat!.fixtureId!,
+        leagueName: widget.leagueName,
+        homeTeam: widget.stat!.homeTeam.name,
+        awayTeam: widget.stat!.awayTeam.name,
+      );
     } else {
       context.read<MatchBloc>().add(GetMatchById(fixtureId: widget.fixtureId!));
       context
@@ -92,6 +102,21 @@ class _MatchDetailsPageState extends State<MatchDetailsPage>
     _startCountdownTimer();
   }
 
+  void updateSelectedIdx(int wgtIdx) {
+    setState(() {
+      selectedTabIndex = wgtIdx;
+      _tabController.animateTo(wgtIdx);
+    });
+    
+    // ADD ANALYTICS FOR TAB CHANGES
+    if (fetchedMatch?.fixtureId != null) {
+      final tabNames = ['Info', 'Lineups', 'Statistics', 'Head to Head', 'Video'];
+      if (wgtIdx < tabNames.length) {
+        _analyticsService.logTabChanged(tabNames[wgtIdx], fetchedMatch!.fixtureId!);
+      }
+    }
+  }
+
   @override
   void dispose() {
     _countdownTimer?.cancel();
@@ -99,19 +124,12 @@ class _MatchDetailsPageState extends State<MatchDetailsPage>
     super.dispose();
   }
 
-  void updateSelectedIdx(int wgtIdx) {
-    setState(() {
-      selectedTabIndex = wgtIdx;
-      _tabController.animateTo(wgtIdx);
-    });
-  }
 
   void _handleBackPress(BuildContext context) {
     if (context.canPop()) {
       context.pop();
     } else {
-      // Navigate to a default route if we can't pop
-      context.goNamed(RouteNames.home); // Replace with your default route
+      context.go('/home'); 
     }
   }
 
@@ -360,63 +378,119 @@ class _MatchDetailsPageState extends State<MatchDetailsPage>
                       ),
                     ),
                   ),
-                  Positioned(
-                    right: 5.w,
-                    top: 20.h,
-                    child: BlocBuilder<FollowingBloc, FollowingState>(
-                      builder: (context, state) {
-                        return LikeButton(
-                          isLiked: state.status == Status.following,
-                          size: 50.0,
-                          circleColor: const CircleColor(
-                              start: Colors.white, end: Colors.green),
-                          bubblesColor: const BubblesColor(
-                            dotPrimaryColor: Colors.white,
-                            dotSecondaryColor: Colors.green,
-                          ),
-                          likeBuilder: (isLiked) {
-                            return Icon(
-                              CupertinoIcons.bell_fill,
-                              color: isLiked
-                                  ? Colorscontainer.greenColor
-                                  : Colors.white,
-                              size: 30.0,
-                            );
-                          },
-                          onTap: (isLiked) async {
-                            var status = await Permission.notification.status;
-                            if (!status.isGranted) {
-                              await openNotificationSettings(context);
-                              status = await Permission.notification.status;
-                            }
+               Positioned(
+  right: 5.w,
+  top: 20.h,
+  child: BlocBuilder<FollowingBloc, FollowingState>(
+    builder: (context, state) {
+      final isFollowing = state.status == Status.following;
 
-                            if (status.isGranted) {
-                              if (isLiked) {
-                                context.read<FollowingBloc>().add(
-                                    RemoveFavouriteMatchEvent(
-                                        matchId: fetchedMatch!.fixtureId));
-                              } else {
-                                context.read<FollowingBloc>().add(
-                                    AddFavouriteMatchEvent(
-                                        matchId: fetchedMatch!.fixtureId));
-                              }
-                              return !isLiked;
-                            } else {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(DemoLocalizations
-                                      .notificationPermissionRequired),
-                                  duration: const Duration(seconds: 3),
-                                ),
-                              );
-                            }
-                            return isLiked;
-                          },
-                        );
-                      },
-                    ),
+      return TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0.95, end: 1.05),
+        duration: const Duration(seconds: 2),
+        curve: Curves.easeInOut,
+        builder: (context, value, child) {
+          return Transform.scale(
+            scale: isFollowing ? 1.0 : value, // stop pulsing when followed
+            child: child,
+          );
+        },
+        child: LikeButton(
+          isLiked: isFollowing,
+          size: 46,
+          circleColor: CircleColor(
+            start: Colors.white,
+            end: Colorscontainer.greenColor,
+          ),
+          bubblesColor: BubblesColor(
+            dotPrimaryColor: Colorscontainer.greenColor,
+            dotSecondaryColor: Colors.white,
+          ),
+          likeBuilder: (isLiked) {
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+  shape: BoxShape.circle,
+  color: Colors.black.withOpacity(0.25),
+  border: Border.all(
+    color: isLiked
+        ? Colors.white        // 👈 white stroke when followed
+        : Colors.white.withOpacity(0.25),
+    width: isLiked ? 2 : 1.2, // slightly thicker when active
+  ),
+  boxShadow: [
+    if (isLiked)
+      BoxShadow(
+        color: Colorscontainer.greenColor.withOpacity(0.6),
+        blurRadius: 14,
+        spreadRadius: 1,
+      ),
+  ],
+),
+
+              child: Icon(
+                CupertinoIcons.bell_fill,
+                size: 24,
+                color: isLiked
+                    ? Colorscontainer.greenColor
+                    : Colors.white.withOpacity(0.9),
+              ),
+            );
+          },
+          onTap: (isLiked) async {
+            var status = await Permission.notification.status;
+
+            if (!status.isGranted) {
+              await _analyticsService.logNotificationPermissionRequested('match_follow');
+              await openNotificationSettings(context);
+              status = await Permission.notification.status;
+
+              if (status.isGranted) {
+                await _analyticsService.logNotificationPermissionGranted('match_follow');
+              } else {
+                await _analyticsService.logNotificationPermissionDenied('match_follow');
+              }
+            }
+
+            if (status.isGranted) {
+              if (!isLiked) {
+                HapticFeedback.mediumImpact();
+                context.read<FollowingBloc>().add(
+                  AddFavouriteMatchEvent(
+                    matchId: fetchedMatch!.fixtureId,
+                    leagueName: widget.leagueName,
+                    homeTeam: fetchedMatch!.homeTeam.name,
+                    awayTeam: fetchedMatch!.awayTeam.name,
                   ),
-                ],
+                );
+              } else {
+                context.read<FollowingBloc>().add(
+                  RemoveFavouriteMatchEvent(
+                    matchId: fetchedMatch!.fixtureId,
+                    leagueName: widget.leagueName,
+                    homeTeam: fetchedMatch!.homeTeam.name,
+                    awayTeam: fetchedMatch!.awayTeam.name,
+                  ),
+                );
+              }
+              return !isLiked;
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(DemoLocalizations.notificationPermissionRequired),
+                  duration: const Duration(seconds: 3),
+                ),
+              );
+            }
+            return isLiked;
+          },
+        ),
+      );
+    },
+  ),
+)
+],
               ),
             );
           }
@@ -681,13 +755,25 @@ class _MatchDetailsPageState extends State<MatchDetailsPage>
                 ),
               ],
             ),
-            child: CachedNetworkImage(
-              imageUrl: team.logo.toString(),
-              width: 35.w,
-              height: 35.w,
-              errorWidget: (context, url, error) =>
-                  Icon(Icons.network_locked_outlined, size: 20.w),
-            ),
+        child: CachedNetworkImage(
+  imageUrl: team.logo.toString(),
+  width: 45.w,
+  height: 45.w,
+  fit: BoxFit.contain,
+  // This triggers if the primary URL fails
+  errorWidget: (context, url, error) => CachedNetworkImage(
+    imageUrl: "https://media.api-sports.io/football/teams/${team.id.toString()}.png",
+    width: 35.w,
+    height: 35.w,
+    fit: BoxFit.contain,
+    // This triggers if the fallback URL also fails
+    errorWidget: (context, fallbackUrl, fallbackError) => Icon(
+      Icons.network_locked_outlined,
+      size: 20.w,
+    ),
+  ),
+),
+
           ),
           SizedBox(height: 6.h),
           Flexible(
@@ -695,9 +781,10 @@ class _MatchDetailsPageState extends State<MatchDetailsPage>
               team.name.toString(),
               textAlign: TextAlign.center,
               maxLines: 2,
+              
               overflow: TextOverflow.ellipsis,
               style: GoogleFonts.abyssinicaSil(
-                fontSize: 11.sp,
+                fontSize: 12.sp,
                 color: Colors.white,
                 fontWeight: FontWeight.w500,
               ),

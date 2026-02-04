@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
@@ -21,6 +22,7 @@ import '../../../../../domain/player/playerModel.dart';
 import '../../../../../domain/player/playerName.dart';
 import '../../../../../localization/demo_localization.dart';
 import '../../../../../main.dart';
+import '../../../../../services/analytics_service.dart';
 import 'details/playerDetails.dart';
 import 'statistics/player_statistics.dart';
 import 'matches_view/matches/matches_view.dart';
@@ -44,6 +46,7 @@ class _PlayerProfilePageState extends State<PlayerProfilePage>
     with SingleTickerProviderStateMixin, AutomaticKeepAliveClientMixin {
   late TabController _tabController;
   Color? dominantColor;
+  final FollowingAnalyticsService _analyticsService = FollowingAnalyticsService();
 
   @override
   bool get wantKeepAlive => true;
@@ -103,6 +106,16 @@ class _PlayerProfilePageState extends State<PlayerProfilePage>
     }
 
     context.read<FollowingBloc>().add(CheckFollowingPlayer(playerId: playerId));
+
+    // ✨ ADD THIS - Track player profile view
+    _analyticsService.logEvent(
+      name: 'player_profile_viewed',
+      parameters: {
+        'player_id': playerId,
+        'player_name': widget.playerName?.englishName ?? 'unknown',
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      },
+    );
 
     _generateDominantColor();
   }
@@ -237,7 +250,7 @@ class _PlayerProfilePageState extends State<PlayerProfilePage>
               Container(
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  boxShadow: [
+                  boxShadow: const [
                     BoxShadow(
                       color: Colors.black45,
                       blurRadius: 8,
@@ -343,55 +356,114 @@ class _PlayerProfilePageState extends State<PlayerProfilePage>
     );
   }
 
-  Widget _buildFollowButton() {
-    final String? isFavParam =
-        GoRouterState.of(context).uri.queryParameters['favourite'];
-    final bool cameFromFavourites = isFavParam == 'true';
+ Widget _buildFollowButton() {
+  final String? isFavParam =
+      GoRouterState.of(context).uri.queryParameters['favourite'];
+  final bool cameFromFavourites = isFavParam == 'true';
 
-    return BlocBuilder<FollowingBloc, FollowingState>(
-      builder: (context, state) {
-        final int? pid = _currentPlayerId;
-        bool isFollowing;
+  return BlocBuilder<FollowingBloc, FollowingState>(
+    builder: (context, state) {
+      final int? pid = _currentPlayerId;
+      bool isFollowing;
 
-        if (state.status == Status.following ||
-            state.status == Status.followRequested) {
-          isFollowing = true;
-        } else if (state.status == Status.notFollowing) {
-          isFollowing = false;
-        } else {
-          isFollowing = cameFromFavourites;
-        }
+      if (state.status == Status.following ||
+          state.status == Status.followRequested) {
+        isFollowing = true;
+      } else if (state.status == Status.notFollowing) {
+        isFollowing = false;
+      } else {
+        isFollowing = cameFromFavourites;
+      }
 
-        return LikeButton(
-          size: 40,
-          isLiked: isFollowing,
-          onTap: (isLiked) async {
-            if (pid == null) return isLiked;
+      return LikeButton(
+        size: 46,
+        isLiked: isFollowing,
+        circleColor: CircleColor(
+          start: Colors.white,
+          end: Colorscontainer.greenColor,
+        ),
+        bubblesColor: BubblesColor(
+          dotPrimaryColor: Colors.white,
+          dotSecondaryColor: Colorscontainer.greenColor,
+        ),
+        onTap: (isLiked) async {
+          if (pid == null) return isLiked;
 
-            var permStatus = await perm_handler.Permission.notification.status;
-            if (!permStatus.isGranted) {
-              await perm_handler.Permission.notification.request();
-              permStatus = await perm_handler.Permission.notification.status;
-            }
+          var permStatus = await perm_handler.Permission.notification.status;
+          if (!permStatus.isGranted) {
+            await _analyticsService.logNotificationPermissionRequested('player_follow');
+
+            await perm_handler.Permission.notification.request();
+            permStatus = await perm_handler.Permission.notification.status;
 
             if (permStatus.isGranted) {
-              context.read<FollowingBloc>().add(isLiked
-                  ? RemoveFollowingPlayer(playerId: pid)
-                  : FollowPlayerRequested(playerId: pid));
-
-              return !isLiked;
+              await _analyticsService.logNotificationPermissionGranted('player_follow');
+            } else {
+              await _analyticsService.logNotificationPermissionDenied('player_follow');
             }
-            return isLiked;
-          },
-          likeBuilder: (isLiked) => Icon(
-            CupertinoIcons.heart_solid,
-            color: isLiked ? Colorscontainer.greenColor : Colors.white,
-            size: 26.0,
-          ),
-        );
-      },
-    );
-  }
+          }
+
+          if (permStatus.isGranted) {
+            final playerName = _getEnglishPlayerName(
+              context.read<PlayerProfileBloc>().state.player,
+            );
+
+            if (!isLiked) {
+              HapticFeedback.mediumImpact();
+            }
+
+            context.read<FollowingBloc>().add(
+              isLiked
+                  ? RemoveFollowingPlayer(
+                      playerId: pid,
+                      playerName: playerName,
+                    )
+                  : FollowPlayerRequested(
+                      playerId: pid,
+                      playerName: playerName,
+                    ),
+            );
+
+            return !isLiked;
+          }
+          return isLiked;
+        },
+        likeBuilder: (isLiked) {
+          return AnimatedContainer(
+            duration: const Duration(milliseconds: 250),
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.black.withOpacity(0.25),
+              border: Border.all(
+                color: isLiked
+                    ? Colors.white // ✅ white stroke when followed
+                    : Colors.white.withOpacity(0.25),
+                width: isLiked ? 2 : 1.2,
+              ),
+              boxShadow: [
+                if (isLiked)
+                  BoxShadow(
+                    color: Colorscontainer.greenColor.withOpacity(0.6),
+                    blurRadius: 14,
+                    spreadRadius: 1,
+                  ),
+              ],
+            ),
+            child: Icon(
+              CupertinoIcons.heart_solid,
+              color: isLiked
+                  ? Colorscontainer.greenColor
+                  : Colors.white.withOpacity(0.9),
+              size: 24,
+            ),
+          );
+        },
+      );
+    },
+  );
+}
+
 
   Widget _buildTabBarView(PlayerProfile? activeProfile) {
     return TabBarView(
@@ -421,6 +493,12 @@ class _PlayerProfilePageState extends State<PlayerProfilePage>
     if (lang == 'am') return p?.amharicName ?? '';
     if (lang == 'si') return p?.somaliName ?? '';
     if (lang == 'or') return p?.oromoName ?? '';
+    return p?.englishName ?? '';
+  }
+
+  String _getEnglishPlayerName(PlayerProfile? active) {
+    final p =
+        active?.playerName ?? widget.playerName ?? widget.profile?.playerName;
     return p?.englishName ?? '';
   }
 

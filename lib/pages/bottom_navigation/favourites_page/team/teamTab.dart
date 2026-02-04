@@ -4,10 +4,13 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import 'package:palette_generator/palette_generator.dart';
 import 'package:http/http.dart' as http;
+import 'package:cached_network_image/cached_network_image.dart';
 
 import '../../../../bloc/mirchaweche/my_fav/my_fav_team/myfavouriteteams_bloc.dart';
 import '../../../../bloc/mirchaweche/my_fav/my_fav_team/myfavouriteteams_event.dart';
 import '../../../../bloc/mirchaweche/my_fav/my_fav_team/myfavouriteteams_state.dart';
+import '../../../../application/following/following_bloc.dart';
+import '../../../../application/following/following_event.dart';
 import '../../../../components/routenames.dart';
 import '../../../../localization/demo_localization.dart';
 import '../../../../main.dart';
@@ -32,6 +35,7 @@ class _TeamTabState extends State<TeamTab> {
     // Pass empty list since teamsIds is required
     // This tells the BLoC: "load favorite teams" (logic should be in the BLoC to handle empty list)
     context.read<MyfavouriteteamsBloc>().add(LoadFavouriteTeams(teamsIds: []));
+    context.read<FollowingBloc>().add(LoadFollowedTeams());
   }
 
   Future<void> _showTeamBottomSheet() async {
@@ -47,6 +51,7 @@ class _TeamTabState extends State<TeamTab> {
 
     // After closing the bottom sheet, refresh the list
     context.read<MyfavouriteteamsBloc>().add(LoadFavouriteTeams(teamsIds: []));
+    context.read<FollowingBloc>().add(LoadFollowedTeams());
   }
 
   Future<Color> _getOrLoadDominantColor(String? logoUrl) async {
@@ -199,20 +204,35 @@ class _TeamTabState extends State<TeamTab> {
                               children: [
                                 // Smaller logo
                                 Expanded(
-                                  flex: 2, // reduced from 3
-                                  child: Padding(
-                                    padding:
-                                        EdgeInsets.symmetric(horizontal: 8.w),
-                                    child: Image.network(
-                                      team.logo ?? '',
-                                      fit: BoxFit.contain,
-                                      height: 60.h, // explicit smaller height
-                                      errorBuilder: (_, __, ___) => Image.asset(
-                                          'assets/club-icon.png',
-                                          height: 60.h),
-                                    ),
-                                  ),
-                                ),
+  flex: 2, 
+  child: Padding(
+    padding: EdgeInsets.symmetric(horizontal: 8.w),
+    child: CachedNetworkImage(
+      imageUrl: (team.logo.isEmpty || team.logo == 'assets/club-icon.png') 
+          ? 'https://media.api-sports.io/football/teams/${team.id}.png' 
+          : team.logo,
+      height: 60.h,
+      fit: BoxFit.contain,
+      // While loading the primary image, show the API-Sports version as a backup placeholder
+      placeholder: (context, url) => Image.network(
+        'https://media.api-sports.io/football/teams/${team.id}.png',
+        height: 60.h,
+        fit: BoxFit.contain,
+        errorBuilder: (context, error, stackTrace) => _buildPlaceholderIcon(),
+      ),
+      // If both the primary URL and the API-Sports URL fail, show the local asset
+      errorWidget: (context, url, error) => Image.network(
+        'https://media.api-sports.io/football/teams/${team.id}.png',
+        height: 60.h,
+        fit: BoxFit.contain,
+        errorBuilder: (context, error, stackTrace) => Image.asset(
+          'assets/club-icon.png',
+          height: 60.h,
+        ),
+      ),
+    ),
+  ),
+),
                                 // Smaller text area
                                 Expanded(
                                   flex: 1, // reduced from 2
@@ -309,7 +329,15 @@ class _TeamTabState extends State<TeamTab> {
     );
   }
 
-// ... (rest of the file: _showTeamBottomSheet, TeamBottomSheet, getDominantColor remain unchanged)}
+
+// Add the missing placeholder icon builder method
+Widget _buildPlaceholderIcon() {
+  return Image.asset(
+    'assets/club-icon.png',
+    height: 60.h,
+    fit: BoxFit.contain,
+  );
+}
 }
 
 class TeamBottomSheet {

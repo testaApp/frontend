@@ -473,23 +473,56 @@ class MatchApiDataSource {
 }
 
 String replaceText(String input) {
-  input = input.replaceAll('round of ', DemoLocalizations.roundOf); //yelem
+  String lowerInput = input.toLowerCase();
+  
+  // Extract number (e.g., "17" or "1")
+  final RegExp numRegex = RegExp(r'(\d+)');
+  final match = numRegex.firstMatch(input);
+  String n = match != null ? match.group(1)! : "";
 
-  input = input.replaceAll('round ', DemoLocalizations.round); //ale
+  // 1. Regular Season / Week / Matchday
+  if (lowerInput.contains('regular season') || 
+      lowerInput.contains('matchday') || 
+      lowerInput.contains('week')) {
+    // Result: "መደበኛ ወቅት 17 ሳምንት"
+    return '${DemoLocalizations.regularSeason} $n ${DemoLocalizations.week}';
+  }
 
-  input =
-      input.replaceAll('semi-finals ', DemoLocalizations.semiFinals); //yelem
+  // 2. Group Stage
+  if (lowerInput.contains('group stage')) {
+    // Some APIs give "Group Stage - 3", we attach the number if it exists
+    return n.isEmpty 
+        ? DemoLocalizations.groupStage 
+        : '${DemoLocalizations.groupStage} $n';
+  }
 
-  input = input.replaceAll(
-      'quarter-finals ', DemoLocalizations.quarterFinals); //yelem
+  // 3. Round of (e.g., Round of 16)
+  if (lowerInput.contains('round of')) {
+    return '${DemoLocalizations.roundOf} $n';
+  }
 
-  input = input.replaceAll('Final ', DemoLocalizations.finalmatch); //yelem
+  // 4. Simple Rounds (e.g., Round 5)
+  if (lowerInput.contains('round') && !lowerInput.contains('round of')) {
+    return '$n ${DemoLocalizations.round}';
+  }
 
-  input = input.replaceAll('Regular Season ', DemoLocalizations.regularSeason);
+  // 5. Legs (Home/Away aggregate matches)
+  if (lowerInput.contains('1st leg') || lowerInput.contains('2nd leg')) {
+    // Result: "1ኛው ጨዋታ" or "2ኛው ጨዋታ"
+    return '$n ${DemoLocalizations.leg}';
+  }
 
-  return input;
+  // 6. Knockout Phases (Static)
+  if (lowerInput.contains('quarter-final')) return DemoLocalizations.quarterFinals;
+  if (lowerInput.contains('semi-final')) return DemoLocalizations.semiFinals;
+  if (lowerInput.contains('final')) return DemoLocalizations.finalmatch;
+
+  // 7. Play-offs / Qualifiers
+  if (lowerInput.contains('play-off')) return DemoLocalizations.playOff;
+  if (lowerInput.contains('qualifying')) return DemoLocalizations.qualifying;
+
+  return input; 
 }
-
 bool isDateInPast(String dateStr, DateTime today) {
   final DateTime inputDate = DateTime.parse(dateStr);
   return inputDate.isBefore(today);

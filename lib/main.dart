@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:app_links/app_links.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
@@ -68,17 +69,21 @@ import 'bloc/video/video_bloc.dart';
 import 'components/routes.dart';
 import 'domain/product/productRepository.dart';
 import 'pages/appbar_pages/enadamt/audio_handler_new.dart';
-import 'pages/entry_pages/functions.dart';
 import 'pages/navigation/quiz/quiz_repository.dart';
+import 'services/analytics_service.dart';
 import 'services/fcm_service.dart';
+import 'services/following_storage_service.dart';
 import 'services/service_locator.dart';
 import 'pages/navigation/themeprovider.dart';
 import 'util/add_to_hive.dart';
 import 'util/auth/store_info.dart';
 import 'util/auth/tokens.dart';
+import 'util/auth/firebase_auth_service.dart';
 import 'util/baseUrl.dart';
 import 'util/notifiers/username_notifier.dart';
 
+//intiate firebase analytics observer
+final FirebaseAnalytics observer = FirebaseAnalytics.instance;
 // ────────────────────────────────────────────────
 // BACKGROUND MESSAGE HANDLER (must be top-level)
 // ────────────────────────────────────────────────
@@ -88,23 +93,35 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   debugPrint('🔔 Background message received → ${message.messageId}');
   debugPrint('   Type: ${message.data['type']}');
   // FCM will display the notification automatically
-}
+
+ }
 
 // ────────────────────────────────────────────────
 // Global variables
 // ────────────────────────────────────────────────
 late GoRouter globalRouter;
 ValueNotifier<String> localLanguageNotifier = ValueNotifier('am');
+late FollowingStorageService globalStorageService;
+late FollowingAnalyticsService globalAnalyticsService;
 
 Future<void> deleteLogin() async {
   final prefs = await SharedPreferences.getInstance();
   final currentLang = localLanguageNotifier.value;
 
+  // 1. Clean up FCM topics
   await FCMTopicManager.cleanupOnLogout(currentLang);
+
+  // 2. Clear the Analytics User ID (This is the important part!)
+  await FirebaseAnalytics.instance.setUserId(id: null);
+
+  // 3. Clear local storage
   await prefs.clear();
   await clearTokens();
 
-  debugPrint('User logged out → all FCM topics cleaned up');
+  debugPrint('User logged out → Analytics ID cleared & FCM topics cleaned up');
+  // 4. Clear Following Storage
+  await globalStorageService.clearAll();
+debugPrint('✅ Following storage cleared on logout');
 }
 
 Future<void> fetchLocalizationValues(String languageCode) async {
@@ -143,6 +160,9 @@ Future<void> main() async {
 
   await Firebase.initializeApp();
 
+ // ─── NEW: Silent anonymous sign-in ───────────────────────────────────────
+ await FirebaseAuthService.initializeAnonymousAuth();
+ 
   // ✅ Initialize Awesome Notifications FIRST
   await FCMService.initializeAwesomeNotifications();
 
@@ -170,6 +190,12 @@ Future<void> main() async {
   ErrorWidget.builder = (errorDetails) => const Text('');
 
   await Hive.initFlutter();
+  globalStorageService = FollowingStorageService();
+await globalStorageService.init();
+debugPrint('✅ Following Storage Service initialized');
+
+globalAnalyticsService = FollowingAnalyticsService();
+debugPrint('✅ Following Analytics Service initialized');
   Hive.registerAdapter(LocalizationDataAdapter());
   var box = await Hive.openBox('settings');
   localLanguageNotifier.value = box.get('language', defaultValue: 'am');
@@ -202,6 +228,7 @@ Future<void> main() async {
               ),
             ),
           ),
+          
           BlocProvider(create: (context) => PersistentPlayerBloc()),
           BlocProvider<TeamBloc>(create: (context) => TeamBloc()),
           BlocProvider<AudioBloc>(create: (context) => AudioBloc()),
@@ -255,7 +282,9 @@ Future<void> main() async {
           BlocProvider<TopYellowCardsBloc>(
               create: (context) => TopYellowCardsBloc()),
           BlocProvider<PlayerSelectionBloc>(
-            create: (context) => PlayerSelectionBloc(),
+            create: (context) => PlayerSelectionBloc(
+              storageService: globalStorageService,
+            ),
           ),
           BlocProvider<FavouriteTeamBloc>(
             create: (context) => FavouriteTeamBloc(),
@@ -284,8 +313,12 @@ Future<void> main() async {
           BlocProvider<FavouriteLeagueBloc>(
               create: (context) => FavouriteLeagueBloc()),
           BlocProvider<SeasonsPageBloc>(create: (context) => SeasonsPageBloc()),
-          BlocProvider<FollowingBloc>(create: (context) => FollowingBloc()),
-          BlocProvider<MatchBloc>(create: (context) => MatchBloc()),
+   BlocProvider<FollowingBloc>(
+            create: (context) => FollowingBloc(
+              storageService: globalStorageService,
+              analyticsService: globalAnalyticsService,
+            ),
+          ),          BlocProvider<MatchBloc>(create: (context) => MatchBloc()),
           BlocProvider<PaymentBloc>(create: (context) => PaymentBloc()),
         ],
         child: MyApp(initLocation: initLocation),
@@ -294,6 +327,122 @@ Future<void> main() async {
   );
 }
 
+Future<void> syncFollowingDataAfterLogin() async {
+  try {
+    debugPrint('🔄 Starting initial sync from server...');
+    
+    final url = BaseUrl().url;
+    final accessToken = await getAccessToken();
+    
+    // Fetch followed matches
+    try {
+      final matchesResponse = await http.get(
+        Uri.parse('$url/api/user/favoriteMatches'),
+        headers: {
+          'accesstoken': accessToken,
+          'content-type': 'application/json',
+        },
+      );
+      
+      if (matchesResponse.statusCode == 200) {
+        final matchesData = jsonDecode(matchesResponse.body);
+        final matchIds = (matchesData['matches'] as List)
+            .map((m) => int.parse(m['id'].toString()))
+            .toList();
+        await globalStorageService.syncFromServer(matches: matchIds);
+        debugPrint('✅ Synced ${matchIds.length} matches');
+      }
+    } catch (e) {
+      debugPrint('⚠️ Could not sync matches: $e');
+    }
+    
+    // Fetch followed teams
+    try {
+      final teamsResponse = await http.get(
+        Uri.parse('$url/api/user/favoriteTeams'),
+        headers: {
+          'accesstoken': accessToken,
+          'content-type': 'application/json',
+        },
+      );
+      
+      if (teamsResponse.statusCode == 200) {
+        final teamsData = jsonDecode(teamsResponse.body);
+        final teamsList = teamsData['teams'] as List;
+        final teamIds = teamsList
+            .map((t) => int.parse(t['id'].toString()))
+            .toList();
+        await globalStorageService.syncFromServer(teams: teamIds);
+        for (final team in teamsList) {
+          final id = int.tryParse(team['id'].toString());
+          final name = team['name']?.toString();
+          if (id != null && name != null && name.isNotEmpty) {
+            await globalStorageService.setFollowedTeamName(id, name);
+          }
+        }
+        debugPrint('? Synced ${teamIds.length} teams');
+      }
+    } catch (e) {
+      debugPrint('⚠️ Could not sync teams: $e');
+    }
+    
+    // Fetch followed players
+    try {
+      final playersResponse = await http.get(
+        Uri.parse('$url/api/user/favoritePlayers'),
+        headers: {
+          'accesstoken': accessToken,
+          'content-type': 'application/json',
+        },
+      );
+      
+      if (playersResponse.statusCode == 200) {
+        final playersData = jsonDecode(playersResponse.body);
+        final playersList = playersData['players'] as List;
+        final playerIds = playersList
+            .map((p) => int.parse(p['id'].toString()))
+            .toList();
+        await globalStorageService.syncFromServer(players: playerIds);
+        for (final player in playersList) {
+          final id = int.tryParse(player['id'].toString());
+          final name = player['name']?.toString();
+          if (id != null && name != null && name.isNotEmpty) {
+            await globalStorageService.setFollowedPlayerName(id, name);
+          }
+        }
+        debugPrint('? Synced ${playerIds.length} players');
+      }
+    } catch (e) {
+      debugPrint('⚠️ Could not sync players: $e');
+    }
+    
+    // Fetch followed podcasts (using existing endpoint)
+    try {
+      final podcastsResponse = await http.get(
+        Uri.parse('$url/api/user/FavoritePodcasts'),
+        headers: {
+          'accesstoken': accessToken,
+          'content-type': 'application/json',
+        },
+      );
+      
+      if (podcastsResponse.statusCode == 200) {
+        final podcastsData = jsonDecode(podcastsResponse.body);
+        final podcastIds = (podcastsData['favoritePodcasts'] as List)
+            .map((p) => p['id'].toString())
+            .toList();
+        await globalStorageService.syncFromServer(podcasts: podcastIds);
+        debugPrint('✅ Synced ${podcastIds.length} podcasts');
+      }
+    } catch (e) {
+      debugPrint('⚠️ Could not sync podcasts: $e');
+    }
+    
+    debugPrint('✅ Initial sync completed successfully');
+  } catch (e) {
+    debugPrint('❌ Error during initial sync: $e');
+  }
+}
 
 class MyApp extends StatefulWidget {
   final String initLocation;

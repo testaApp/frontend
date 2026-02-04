@@ -8,9 +8,6 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 import 'package:palette_generator/palette_generator.dart';
 
-import '../../../../../../../../bloc/mirchaweche/my_fav/my_fav_player/myfavourite_players_bloc.dart';
-import '../../../../../../../../bloc/mirchaweche/my_fav/my_fav_player/myfavourite_players_event.dart';
-import '../../../../../../../../bloc/mirchaweche/my_fav/my_fav_player/myfavourite_players_state.dart';
 import '../../../../../../../../components/routenames.dart';
 import '../../../../../../../../localization/demo_localization.dart';
 import '../../../../../../../../main.dart';
@@ -48,7 +45,8 @@ class _PlayerTabState extends State<PlayerTab>
 
   Future<void> _refreshData() async {
     if (!mounted) return;
-    context.read<MyfavouritePlayersBloc>().add(MyfavouritePlayersRequested());
+    context.read<FollowingBloc>().add(LoadFollowedPlayers());
+    context.read<PlayerSelectionBloc>().add(FetchPlayersRequested());
     context.read<PlayerSelectionBloc>().add(FetchPopularPlayersRequested());
   }
 
@@ -92,6 +90,18 @@ class _PlayerTabState extends State<PlayerTab>
     }
   }
 
+  void _maybeLoadMore(
+      PlayerSelectionState selectionState, int missingCount) {
+    if (missingCount <= 0) return;
+    if (selectionState.status != PlayerSelectionStatus.success) return;
+    if (selectionState.isLoadingMore || selectionState.hasReachedMax) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read<PlayerSelectionBloc>().add(LoadMorePlayersRequested());
+    });
+  }
+
   void _openPlayerSearch() {
     showSearch(
       context: context,
@@ -133,41 +143,79 @@ class _PlayerTabState extends State<PlayerTab>
       backgroundColor: Colors.transparent,
       body: RefreshIndicator(
         onRefresh: _refreshData,
-        child: BlocBuilder<MyfavouritePlayersBloc, MyfavouritePlayersState>(
-          builder: (context, favState) {
-            if (favState.status == playersStatus.initial ||
-                favState.status == playersStatus.requested) {
-              return _buildLoadingState();
-            }
+        child: BlocBuilder<FollowingBloc, FollowingState>(
+          builder: (context, followingState) {
+            final followedIds = followingState.followedPlayers;
+            final followedIdSet = followedIds.toSet();
 
-            if (favState.status == playersStatus.connectionError) {
-              return _buildErrorState();
-            }
+            return BlocBuilder<PlayerSelectionBloc, PlayerSelectionState>(
+              builder: (context, selectionState) {
+                final cache = <int, PlayerSelectionModel>{};
+                for (final p in selectionState.players) {
+                  cache[p.id] = p;
+                }
+                for (final p in selectionState.popularPlayers) {
+                  cache[p.id] = p;
+                }
+                for (final p in selectionState.searchResults) {
+                  cache[p.id] = p;
+                }
 
-            if (favState.players.isEmpty) {
-              return _buildEmptyState(favState);
-            }
+                final favPlayers = <PlayerSelectionModel>[];
+                for (final id in followedIds) {
+                  final p = cache[id];
+                  if (p != null) favPlayers.add(p);
+                }
 
-            return Column(
-              children: [
-                _buildSearchBar(),
-                Expanded(
-                  child: GridView.builder(
-                    padding: EdgeInsets.fromLTRB(18.w, 0, 18.w, 120.h),
-                    itemCount: favState.players.length,
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      mainAxisSpacing: 18,
-                      crossAxisSpacing: 16,
-                      childAspectRatio: 0.90,
+                final missingCount = followedIds.length - favPlayers.length;
+                _maybeLoadMore(selectionState, missingCount);
+
+                if (followedIds.isEmpty) {
+                  return _buildEmptyState(followedIdSet);
+                }
+
+                if (selectionState.status == PlayerSelectionStatus.loading &&
+                    favPlayers.isEmpty) {
+                  return _buildLoadingState();
+                }
+
+                if (selectionState.status == PlayerSelectionStatus.failure &&
+                    favPlayers.isEmpty) {
+                  return _buildErrorState();
+                }
+
+                if (favPlayers.isEmpty &&
+                    selectionState.hasReachedMax &&
+                    !selectionState.isLoadingMore) {
+                  return _buildErrorState();
+                }
+
+                if (favPlayers.isEmpty) {
+                  return _buildLoadingState();
+                }
+
+                return Column(
+                  children: [
+                    _buildSearchBar(),
+                    Expanded(
+                      child: GridView.builder(
+                        padding: EdgeInsets.fromLTRB(18.w, 0, 18.w, 120.h),
+                        itemCount: favPlayers.length,
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          mainAxisSpacing: 18,
+                          crossAxisSpacing: 16,
+                          childAspectRatio: 0.90,
+                        ),
+                        itemBuilder: (context, index) =>
+                            _buildPlayerCard(favPlayers[index]),
+                      ),
                     ),
-                    itemBuilder: (context, index) =>
-                        _buildPlayerCard(favState.players[index]),
-                  ),
-                ),
-              ],
+                  ],
+                );
+              },
             );
           },
         ),
@@ -194,7 +242,7 @@ class _PlayerTabState extends State<PlayerTab>
                 'teamId': player.team.id?.toString() ?? '',
               },
             );
-            if (result == true && mounted) _refreshData();
+            if (result == true && mounted) await _refreshData();
           },
           child: _glass(
             tint: dominant,
@@ -282,7 +330,7 @@ class _PlayerTabState extends State<PlayerTab>
     );
   }
 
-  Widget _buildEmptyState(MyfavouritePlayersState favState) {
+  Widget _buildEmptyState(Set<int> followedIds) {
     return BlocBuilder<PlayerSelectionBloc, PlayerSelectionState>(
       builder: (context, selectionState) {
         return SingleChildScrollView(
@@ -294,7 +342,8 @@ class _PlayerTabState extends State<PlayerTab>
               SmoothAutoScrollingAvatarList(
                   players: selectionState.popularPlayers),
               _buildSearchBar(),
-              _buildRecommendationList(selectionState.popularPlayers, favState),
+              _buildRecommendationList(
+                  selectionState.popularPlayers, followedIds),
               SizedBox(height: 120.h),
             ],
           ),
@@ -368,7 +417,7 @@ class _PlayerTabState extends State<PlayerTab>
   }
 
   Widget _buildRecommendationList(
-      List<PlayerSelectionModel> players, MyfavouritePlayersState favState) {
+      List<PlayerSelectionModel> players, Set<int> followedIds) {
     if (players.isEmpty) return const SizedBox.shrink();
 
     return Padding(
@@ -393,7 +442,7 @@ class _PlayerTabState extends State<PlayerTab>
               return RecommendedPlayerTile(
                 key: ValueKey('rec_${player.id}'),
                 player: player,
-                favState: favState,
+                followedIds: followedIds,
                 getLocalizedPlayerName: _getLocalizedPlayerName,
                 getLocalizedTeamName: _getLocalizedTeamName,
               );
@@ -558,14 +607,14 @@ class _SmoothAutoScrollingAvatarListState
 
 class RecommendedPlayerTile extends StatefulWidget {
   final PlayerSelectionModel player;
-  final MyfavouritePlayersState favState;
+  final Set<int> followedIds;
   final String Function(PlayerSelectionModel) getLocalizedPlayerName;
   final String Function(PlayerSelectionTeam) getLocalizedTeamName;
 
   const RecommendedPlayerTile({
     super.key,
     required this.player,
-    required this.favState,
+    required this.followedIds,
     required this.getLocalizedPlayerName,
     required this.getLocalizedTeamName,
   });
@@ -576,7 +625,6 @@ class RecommendedPlayerTile extends StatefulWidget {
 
 class _RecommendedPlayerTileState extends State<RecommendedPlayerTile> {
   StreamSubscription? _followingSubscription;
-  StreamSubscription? _favSubscription;
 
   bool? _optimisticIsFav;
   bool _isProcessing = false;
@@ -584,13 +632,11 @@ class _RecommendedPlayerTileState extends State<RecommendedPlayerTile> {
   @override
   void dispose() {
     _followingSubscription?.cancel();
-    _favSubscription?.cancel();
     super.dispose();
   }
 
   void _handleFollowToggle() {
-    final backendIsFav =
-        widget.favState.players.any((p) => p.id == widget.player.id);
+    final backendIsFav = widget.followedIds.contains(widget.player.id);
     final currentDisplay = _optimisticIsFav ?? backendIsFav;
     final target = !currentDisplay;
 
@@ -603,7 +649,12 @@ class _RecommendedPlayerTileState extends State<RecommendedPlayerTile> {
 
     context
         .read<FollowingBloc>()
-        .add(ToggleFollowPlayer(playerId: widget.player.id));
+        .add(ToggleFollowPlayer(
+          playerId: widget.player.id,
+          playerName: widget.player.englishName.isNotEmpty
+              ? widget.player.englishName
+              : widget.getLocalizedPlayerName(widget.player),
+        ));
 
     // Cancel any previous subscription
     _followingSubscription?.cancel();
@@ -616,42 +667,30 @@ class _RecommendedPlayerTileState extends State<RecommendedPlayerTile> {
           state.status == Status.notFollowing ||
           state.status == Status.error ||
           state.status == Status.networkError ||
-          state.status == Status.serverError) {
-        context
-            .read<MyfavouritePlayersBloc>()
-            .add(MyfavouritePlayersRequested());
+          state.status == Status.serverError ||
+          state.status == Status.unknownError) {
+        final serverHasIt =
+            state.followedPlayers.contains(widget.player.id);
 
-        // Cancel previous fav subscription
-        _favSubscription?.cancel();
-        _favSubscription =
-            context.read<MyfavouritePlayersBloc>().stream.listen((newFavState) {
-          // Critical: Check mounted before accessing state or calling setState
+        if (serverHasIt == target ||
+            state.status == Status.error ||
+            state.status == Status.networkError ||
+            state.status == Status.serverError ||
+            state.status == Status.unknownError) {
           if (!mounted) return;
-
-          final serverHasIt =
-              newFavState.players.any((p) => p.id == widget.player.id);
-
-          if (serverHasIt == target) {
-            // Only call setState if still mounted
-            if (!mounted) return;
-            setState(() {
-              _optimisticIsFav = null;
-              _isProcessing = false;
-            });
-            _favSubscription?.cancel();
-          }
-        });
-
-        // Cancel this subscription after handling
-        _followingSubscription?.cancel();
+          setState(() {
+            _optimisticIsFav = null;
+            _isProcessing = false;
+          });
+          _followingSubscription?.cancel();
+        }
       }
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final backendIsFav =
-        widget.favState.players.any((p) => p.id == widget.player.id);
+    final backendIsFav = widget.followedIds.contains(widget.player.id);
     final isFav = _optimisticIsFav ?? backendIsFav;
 
     return Padding(

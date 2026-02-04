@@ -482,10 +482,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: _buildCurrentScreen(),
                 ),
                 BlocBuilder<PersistentPlayerBloc, PersistentPlayerState>(
-                  builder: (context, state) {
-                    if (state.status == PersistentPlayerStatus.hidden) {
-                      return const SizedBox.shrink();
-                    }
+  builder: (context, state) {
+    print("PersistentPlayerBloc → status = ${state.status}");           // ← add
+    print("PersistentPlayerBloc → has data? ${state.liveLink.isNotEmpty}"); // ← add
+
+    if (state.status == PersistentPlayerStatus.hidden) {
+      return const SizedBox.shrink();
+    }
 
                     return LiveAudioPlayer(
                       avatar: state.avatar,
