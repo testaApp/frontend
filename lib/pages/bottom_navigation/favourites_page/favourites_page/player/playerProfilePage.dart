@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
+import 'package:hive/hive.dart';
 import 'package:like_button/like_button.dart';
 import 'package:permission_handler/permission_handler.dart' as perm_handler;
 import 'package:tab_indicator_styler/tab_indicator_styler.dart';
@@ -17,17 +18,23 @@ import '../../../../../application/following/following_state.dart';
 import '../../../../../bloc/mirchaweche/players/player_profile/player_profile_bloc.dart';
 import '../../../../../bloc/mirchaweche/players/player_profile/player_profile_event.dart';
 import '../../../../../bloc/mirchaweche/players/player_profile/player_profile_state.dart';
+import '../../../../../bloc/news/news_bloc.dart';
+import '../../../../../bloc/news/news_event.dart';
+import '../../../../../bloc/news/news_state.dart';
 import '../../../../../components/dominant_color_generator.dart';
 import '../../../../../domain/player/playerModel.dart';
 import '../../../../../domain/player/playerName.dart';
 import '../../../../../localization/demo_localization.dart';
 import '../../../../../main.dart';
 import '../../../../../services/analytics_service.dart';
-import 'details/playerDetails.dart';
-import 'statistics/player_statistics.dart';
-import 'matches_view/matches/matches_view.dart';
+import '../../../../appbar_pages/news/main_news/widgets/player_news.dart';
 import '../../../../constants/colors.dart';
 import '../../../../constants/text_utils.dart';
+import 'details/playerDetails.dart';
+import 'matches_view/matches/matches_view.dart';
+import 'statistics/player_statistics.dart';
+
+// NEW: import player news page
 
 class PlayerProfilePage extends StatefulWidget {
   final PlayerProfile? profile;
@@ -54,13 +61,12 @@ class _PlayerProfilePageState extends State<PlayerProfilePage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this); // ✅ 4 tabs
     WidgetsBinding.instance.addPostFrameCallback((_) => _initializeData());
   }
 
   String _sanitizeMediaUrl(String? url) {
     if (url == null || url.isEmpty) return '';
-    // Replace any old media subdomain with the current one
     return url.replaceAll(
         RegExp(r'media-\d+\.api-sports\.io'), 'media.api-sports.io');
   }
@@ -68,7 +74,6 @@ class _PlayerProfilePageState extends State<PlayerProfilePage>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Ensure Bloc has the current player data
     final int? playerId = _currentPlayerId;
     final blocPlayerId = context.read<PlayerProfileBloc>().state.player?.id;
 
@@ -107,7 +112,18 @@ class _PlayerProfilePageState extends State<PlayerProfilePage>
 
     context.read<FollowingBloc>().add(CheckFollowingPlayer(playerId: playerId));
 
-    // ✨ ADD THIS - Track player profile view
+    // ✅ load player news by English name
+    final playerName =
+        _getEnglishPlayerName(context.read<PlayerProfileBloc>().state.player);
+    if (playerName.isNotEmpty) {
+      context.read<NewsBloc>().add(
+            PlayerNewsRequested(
+              playerName: playerName,
+              language: localLanguageNotifier.value,
+            ),
+          );
+    }
+
     _analyticsService.logEvent(
       name: 'player_profile_viewed',
       parameters: {
@@ -140,7 +156,7 @@ class _PlayerProfilePageState extends State<PlayerProfilePage>
 
   @override
   Widget build(BuildContext context) {
-    super.build(context); // Important for AutomaticKeepAliveClientMixin
+    super.build(context);
     return BlocBuilder<PlayerProfileBloc, PlayerProfileState>(
       builder: (context, state) {
         final int? targetId = _currentPlayerId;
@@ -192,8 +208,6 @@ class _PlayerProfilePageState extends State<PlayerProfilePage>
     return IconButton(
       icon: const Icon(Icons.arrow_back, color: Colors.white),
       onPressed: () {
-        // CORRECTION: Passes 'true' back to the PlayerTab
-        // to trigger the refresh logic on that screen.
         Navigator.of(context).pop(true);
       },
     );
@@ -202,16 +216,10 @@ class _PlayerProfilePageState extends State<PlayerProfilePage>
   Widget _buildModernHeader(PlayerProfile? activeProfile) {
     final String teamPhotoUrl = _getTeamImageUrl(activeProfile);
     final String playerPhotoUrl = _getPlayerImageUrl(activeProfile);
-    final String gameNumber =
-        GoRouterState.of(context).uri.queryParameters['playerNumber'] ??
-            widget.playerName?.number?.toString() ??
-            activeProfile?.statistics.firstOrNull?.gameNumber?.toString() ??
-            '';
 
     return Stack(
       fit: StackFit.expand,
       children: [
-        // Background Team Image with Blur
         CachedNetworkImage(
           imageUrl: teamPhotoUrl,
           fit: BoxFit.cover,
@@ -232,7 +240,6 @@ class _PlayerProfilePageState extends State<PlayerProfilePage>
             ),
           ),
         ),
-        // Optional: Soft blur effect
         Positioned.fill(
           child: BackdropFilter(
             filter: ImageFilter.blur(
@@ -246,7 +253,6 @@ class _PlayerProfilePageState extends State<PlayerProfilePage>
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              // Player Image with Shadow & Border
               Container(
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
@@ -285,7 +291,6 @@ class _PlayerProfilePageState extends State<PlayerProfilePage>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Player Name with Shadow
                     Text(
                       _getPlayerName(activeProfile),
                       style: TextUtils.setTextStyle(
@@ -305,7 +310,6 @@ class _PlayerProfilePageState extends State<PlayerProfilePage>
                       overflow: TextOverflow.ellipsis,
                     ),
                     SizedBox(height: 8.h),
-                    // Team logo + Club name + Jersey number
                     Row(
                       children: [
                         ClipRRect(
@@ -356,114 +360,116 @@ class _PlayerProfilePageState extends State<PlayerProfilePage>
     );
   }
 
- Widget _buildFollowButton() {
-  final String? isFavParam =
-      GoRouterState.of(context).uri.queryParameters['favourite'];
-  final bool cameFromFavourites = isFavParam == 'true';
+  Widget _buildFollowButton() {
+    final String? isFavParam =
+        GoRouterState.of(context).uri.queryParameters['favourite'];
+    final bool cameFromFavourites = isFavParam == 'true';
 
-  return BlocBuilder<FollowingBloc, FollowingState>(
-    builder: (context, state) {
-      final int? pid = _currentPlayerId;
-      bool isFollowing;
+    return BlocBuilder<FollowingBloc, FollowingState>(
+      builder: (context, state) {
+        final int? pid = _currentPlayerId;
+        bool isFollowing;
 
-      if (state.status == Status.following ||
-          state.status == Status.followRequested) {
-        isFollowing = true;
-      } else if (state.status == Status.notFollowing) {
-        isFollowing = false;
-      } else {
-        isFollowing = cameFromFavourites;
-      }
+        if (state.status == Status.following ||
+            state.status == Status.followRequested) {
+          isFollowing = true;
+        } else if (state.status == Status.notFollowing) {
+          isFollowing = false;
+        } else {
+          isFollowing = cameFromFavourites;
+        }
 
-      return LikeButton(
-        size: 46,
-        isLiked: isFollowing,
-        circleColor: CircleColor(
-          start: Colors.white,
-          end: Colorscontainer.greenColor,
-        ),
-        bubblesColor: BubblesColor(
-          dotPrimaryColor: Colors.white,
-          dotSecondaryColor: Colorscontainer.greenColor,
-        ),
-        onTap: (isLiked) async {
-          if (pid == null) return isLiked;
+        return LikeButton(
+          size: 46,
+          isLiked: isFollowing,
+          circleColor: CircleColor(
+            start: Colors.white,
+            end: Colorscontainer.greenColor,
+          ),
+          bubblesColor: BubblesColor(
+            dotPrimaryColor: Colors.white,
+            dotSecondaryColor: Colorscontainer.greenColor,
+          ),
+          onTap: (isLiked) async {
+            if (pid == null) return isLiked;
 
-          var permStatus = await perm_handler.Permission.notification.status;
-          if (!permStatus.isGranted) {
-            await _analyticsService.logNotificationPermissionRequested('player_follow');
+            var permStatus = await perm_handler.Permission.notification.status;
+            if (!permStatus.isGranted) {
+              await _analyticsService.logNotificationPermissionRequested(
+                  'player_follow');
 
-            await perm_handler.Permission.notification.request();
-            permStatus = await perm_handler.Permission.notification.status;
+              await perm_handler.Permission.notification.request();
+              permStatus = await perm_handler.Permission.notification.status;
+
+              if (permStatus.isGranted) {
+                await _analyticsService
+                    .logNotificationPermissionGranted('player_follow');
+              } else {
+                await _analyticsService
+                    .logNotificationPermissionDenied('player_follow');
+              }
+            }
 
             if (permStatus.isGranted) {
-              await _analyticsService.logNotificationPermissionGranted('player_follow');
-            } else {
-              await _analyticsService.logNotificationPermissionDenied('player_follow');
+              final playerName = _getEnglishPlayerName(
+                context.read<PlayerProfileBloc>().state.player,
+              );
+
+              if (!isLiked) {
+                HapticFeedback.mediumImpact();
+              }
+
+              context.read<FollowingBloc>().add(
+                    isLiked
+                        ? RemoveFollowingPlayer(
+                            playerId: pid,
+                            playerName: playerName,
+                          )
+                        : FollowPlayerRequested(
+                            playerId: pid,
+                            playerName: playerName,
+                          ),
+                  );
+
+              return !isLiked;
             }
-          }
-
-          if (permStatus.isGranted) {
-            final playerName = _getEnglishPlayerName(
-              context.read<PlayerProfileBloc>().state.player,
-            );
-
-            if (!isLiked) {
-              HapticFeedback.mediumImpact();
-            }
-
-            context.read<FollowingBloc>().add(
-              isLiked
-                  ? RemoveFollowingPlayer(
-                      playerId: pid,
-                      playerName: playerName,
-                    )
-                  : FollowPlayerRequested(
-                      playerId: pid,
-                      playerName: playerName,
+            return isLiked;
+          },
+          likeBuilder: (isLiked) {
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.black.withOpacity(0.25),
+                border: Border.all(
+                  color: isLiked
+                      ? Colors.white
+                      : Colors.white.withOpacity(0.25),
+                  width: isLiked ? 2 : 1.2,
+                ),
+                boxShadow: [
+                  if (isLiked)
+                    BoxShadow(
+                      color: Colorscontainer.greenColor.withOpacity(0.6),
+                      blurRadius: 14,
+                      spreadRadius: 1,
                     ),
-            );
-
-            return !isLiked;
-          }
-          return isLiked;
-        },
-        likeBuilder: (isLiked) {
-          return AnimatedContainer(
-            duration: const Duration(milliseconds: 250),
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.black.withOpacity(0.25),
-              border: Border.all(
-                color: isLiked
-                    ? Colors.white // ✅ white stroke when followed
-                    : Colors.white.withOpacity(0.25),
-                width: isLiked ? 2 : 1.2,
+                ],
               ),
-              boxShadow: [
-                if (isLiked)
-                  BoxShadow(
-                    color: Colorscontainer.greenColor.withOpacity(0.6),
-                    blurRadius: 14,
-                    spreadRadius: 1,
-                  ),
-              ],
-            ),
-            child: Icon(
-              CupertinoIcons.heart_solid,
-              color: isLiked
-                  ? Colorscontainer.greenColor
-                  : Colors.white.withOpacity(0.9),
-              size: 24,
-            ),
-          );
-        },
-      );
-    },
-  );
-}
-
+              child: Icon(
+                CupertinoIcons.heart_solid,
+                color: isLiked
+                    ? Colorscontainer.greenColor
+                    : Colors.white.withOpacity(0.9),
+                size: 24,
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
 
   Widget _buildTabBarView(PlayerProfile? activeProfile) {
     return TabBarView(
@@ -479,8 +485,11 @@ class _PlayerProfilePageState extends State<PlayerProfilePage>
             : const Center(child: CircularProgressIndicator()),
         MatchesView(
           teamId: activeProfile?.idteam.toString() ?? '',
-          playerStatistics:
-              activeProfile?.statistics ?? [], // ← NEW: pass stats
+          playerStatistics: activeProfile?.statistics ?? [],
+        ),
+        // ✅ News tab
+        PlayerNewsPage(
+          playerName: _getEnglishPlayerName(activeProfile),
         ),
       ],
     );
@@ -537,34 +546,29 @@ class _PlayerProfilePageState extends State<PlayerProfilePage>
   }
 
   String _getTeamImageUrl(PlayerProfile? active) {
-    // 1. Priority: widget.teamPic (passed from navigation)
     if (widget.teamPic != null && widget.teamPic!.isNotEmpty) {
       return widget.teamPic!;
     }
 
-    // 2. Priority: currentTeamLogo from active profile
     if (active?.currentTeamLogo != null &&
         active!.currentTeamLogo!.isNotEmpty) {
       return _sanitizeMediaUrl(active.currentTeamLogo)!;
     }
 
-    // 3. Fallback: Try to get team ID from active or widget.profile
     final dynamic rawTeamId = active?.idteam ?? widget.profile?.idteam;
 
     int? tid;
-
     if (rawTeamId is int) {
       tid = rawTeamId;
     } else if (rawTeamId is String && rawTeamId.isNotEmpty) {
       tid = int.tryParse(rawTeamId);
     }
-    // If it's something else (null, dynamic weird type), tid remains null
 
     if (tid != null) {
       return 'https://media.api-sports.io/football/teams/$tid.png';
     }
 
-    return ''; // Final fallback: empty string (image will use errorWidget)
+    return '';
   }
 
   SliverPersistentHeader _buildTabBar(BuildContext context) {
@@ -584,7 +588,8 @@ class _PlayerProfilePageState extends State<PlayerProfilePage>
           tabs: [
             Tab(text: DemoLocalizations.detail),
             Tab(text: DemoLocalizations.statistics),
-            Tab(text: DemoLocalizations.games)
+            Tab(text: DemoLocalizations.games),
+            Tab(text: DemoLocalizations.news),
           ],
         ),
       ),

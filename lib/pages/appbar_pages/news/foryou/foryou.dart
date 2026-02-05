@@ -101,7 +101,14 @@ class _ForYouScreenState extends State<ForYouScreen>
               final allNews = [
                 ...state.forYouTeamNews.values.expand((list) => list),
                 ...state.forYouPlayerNews.values.expand((list) => list),
-              ]..sort((a, b) => b.time.compareTo(a.time));
+              ]..sort((a, b) {
+                final dateA = a.publishedDate != null ? DateTime.tryParse(a.publishedDate!) : null;
+                final dateB = b.publishedDate != null ? DateTime.tryParse(b.publishedDate!) : null;
+                if (dateA == null && dateB == null) return 0;
+                if (dateA == null) return 1;
+                if (dateB == null) return -1;
+                return dateB.compareTo(dateA);
+              });
 
               if ((state.forYouNewsStatus == NewsRequest.requestInProgress ||
                       state.forYouNewsStatus == NewsRequest.unknown) &&
@@ -185,11 +192,12 @@ class PremiumMagazineNewsCard extends StatelessWidget {
       child: InkWell(
         onTap: () {
           Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => NewsDetailPage(news: news),
-            ),
-          );
+  context,
+  MaterialPageRoute(
+    builder: (context) => NewsDetailPage(id: news.id),
+  ),
+);
+
         },
         child: Stack(
           children: [
@@ -285,7 +293,7 @@ class PremiumMagazineNewsCard extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          formatTimeForNews(news.time),
+                          formatTimeForNews(news.publishedDate ?? ''),
                           style: TextStyle(
                             color: Colors.white70,
                             fontSize: 14.sp,

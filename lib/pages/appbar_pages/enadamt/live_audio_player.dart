@@ -1,9 +1,11 @@
+import 'dart:async';
+import 'dart:ui';
+
+import 'package:audio_service/audio_service.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'dart:ui';
-import 'package:audio_service/audio_service.dart';
 
 import '../../../application/persistent_player/persistent_player_bloc.dart';
 import '../../../application/persistent_player/persistent_player_event.dart';
@@ -37,6 +39,7 @@ class LiveAudioPlayer extends StatefulWidget {
 
 class _LiveAudioPlayerState extends State<LiveAudioPlayer> {
   late AudioHandler _audioHandler;
+  StreamSubscription<PlaybackState>? _playbackStateSubscription;
   bool _isPlaying = false;
   bool _isLoading = false;
 
@@ -44,7 +47,20 @@ class _LiveAudioPlayerState extends State<LiveAudioPlayer> {
   void initState() {
     super.initState();
     _audioHandler = getIt<AudioHandler>();
+    _listenToPlaybackState();
     _initializeAudio();
+  }
+
+  @override
+  void didUpdateWidget(covariant LiveAudioPlayer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.liveLink != oldWidget.liveLink ||
+        widget.name != oldWidget.name ||
+        widget.station != oldWidget.station ||
+        widget.program != oldWidget.program ||
+        widget.avatar != oldWidget.avatar) {
+      _initializeAudio();
+    }
   }
 
   Future<void> _initializeAudio() async {
@@ -64,19 +80,6 @@ class _LiveAudioPlayerState extends State<LiveAudioPlayer> {
           artUri: Uri.parse(widget.avatar),
           extras: {'url': widget.liveLink});
 
-      // Set up listener first
-      _audioHandler.playbackState.listen((playbackState) {
-        if (mounted) {
-          setState(() {
-            _isPlaying = playbackState.playing;
-            // Only set loading to false when we're actually playing or explicitly paused
-            _isLoading = playbackState.processingState ==
-                    AudioProcessingState.loading ||
-                playbackState.processingState == AudioProcessingState.buffering;
-          });
-        }
-      });
-
       await _audioHandler.playMediaItem(mediaItem);
     } catch (e) {
       print('Error initializing audio player: $e');
@@ -87,6 +90,20 @@ class _LiveAudioPlayerState extends State<LiveAudioPlayer> {
         });
       }
     }
+  }
+
+  void _listenToPlaybackState() {
+    _playbackStateSubscription?.cancel();
+    _playbackStateSubscription =
+        _audioHandler.playbackState.listen((playbackState) {
+      if (!mounted) return;
+      setState(() {
+        _isPlaying = playbackState.playing;
+        _isLoading = playbackState.processingState ==
+                AudioProcessingState.loading ||
+            playbackState.processingState == AudioProcessingState.buffering;
+      });
+    });
   }
 
   Future<void> _handlePlayPause() async {
@@ -120,6 +137,7 @@ class _LiveAudioPlayerState extends State<LiveAudioPlayer> {
 
   @override
   void dispose() {
+    _playbackStateSubscription?.cancel();
     _audioHandler.stop();
     super.dispose();
   }
@@ -285,12 +303,21 @@ class _LiveAudioPlayerState extends State<LiveAudioPlayer> {
         SizedBox(width: 8.w),
         _buildControlButton(
           onTap: () async {
-            await _audioHandler.stop();
-            await _audioHandler.customAction('dispose');
-            if (widget.onClose != null) {
-              widget.onClose!();
+            try {
+              await _audioHandler.stop();
+              await _audioHandler.customAction('dispose');
+            } catch (e) {
+              print('Error closing player: $e');
+            } finally {
+              if (widget.onClose != null) {
+                widget.onClose!();
+              }
+              if (mounted) {
+                context
+                    .read<PersistentPlayerBloc>()
+                    .add(HidePersistentPlayer());
+              }
             }
-            context.read<PersistentPlayerBloc>().add(HidePersistentPlayer());
           },
           child: Icon(
             Icons.close_rounded,

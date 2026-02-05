@@ -1,11 +1,13 @@
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
 
 class MyAudioHandler extends BaseAudioHandler {
   final _player = AudioPlayer();
   final _playlist = ConcatenatingAudioSource(children: []);
   final currentVolumeNotifier = ValueNotifier<double>(0.0);
+  Future<void> _operation = Future.value();
 
   MyAudioHandler() {
     _loadEmptyPlaylist();
@@ -85,8 +87,13 @@ class MyAudioHandler extends BaseAudioHandler {
     _player.sequenceStateStream.listen((sequenceState) {
       final sequence = sequenceState?.effectiveSequence;
       if (sequence == null || sequence.isEmpty) return;
-      final items = sequence.map((source) => source.tag as MediaItem);
-      queue.add(items.toList());
+      final items = sequence
+          .where((source) => source.tag is MediaItem)
+          .map((source) => source.tag as MediaItem)
+          .toList();
+      if (items.isNotEmpty) {
+        queue.add(items);
+      }
     });
   }
 
@@ -107,24 +114,65 @@ class MyAudioHandler extends BaseAudioHandler {
 
   @override
   Future<void> stop() async {
-    await _player.stop();
+    try {
+      await _player.stop();
+    } on PlatformException catch (e) {
+      if (e.code != 'abort') {
+        rethrow;
+      }
+    }
     return super.stop();
   }
 
   @override
   Future<void> playMediaItem(MediaItem mediaItem) async {
-    await stop();
-    this.mediaItem.add(mediaItem);
-    await _player.setUrl(mediaItem.id);
-    await play();
+    _operation = _operation.then((_) async {
+      try {
+        await stop();
+        await _playlist.clear();
+        final audioSource = _createAudioSource(mediaItem);
+        await _playlist.add(audioSource);
+        await _player.setAudioSource(
+          _playlist,
+          initialIndex: 0,
+          initialPosition: Duration.zero,
+        );
+        queue.add([mediaItem]);
+        this.mediaItem.add(mediaItem);
+        await play();
+      } on PlatformException catch (e) {
+        if (e.code != 'abort') {
+          rethrow;
+        }
+      }
+    }).catchError((error) {
+      debugPrint('playMediaItem failed: $error');
+    });
+    await _operation;
+  }
+
+  UriAudioSource _createAudioSource(MediaItem mediaItem) {
+    final dynamic urlValue = mediaItem.extras?['url'] ?? mediaItem.id;
+    final String url = urlValue.toString();
+    return AudioSource.uri(
+      Uri.parse(url),
+      tag: mediaItem,
+    );
   }
 
   @override
   Future<void> customAction(String name, [Map<String, dynamic>? extras]) async {
     if (name == 'dispose') {
-      await _player.stop();
-      await _player.setAudioSource(_playlist);
-      await _loadEmptyPlaylist();
+      try {
+        await _player.stop();
+      } on PlatformException catch (e) {
+        if (e.code != 'abort') {
+          rethrow;
+        }
+      }
+      await _playlist.clear();
+      queue.add(const []);
+      // Keep mediaItem as-is to avoid null casts elsewhere.
     } else if (name == 'volume' && extras != null) {
       final volume = extras['volume'] as double;
       await _player.setVolume(volume);

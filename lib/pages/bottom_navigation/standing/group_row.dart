@@ -15,6 +15,10 @@ class GroupRow extends StatelessWidget {
         ? name!.replaceAll('Group', DemoLocalizations.group)
         : name ?? '';
 
+    if (displayName.trim().isEmpty) {
+      return const SizedBox.shrink();
+    }
+
     return Padding(
       padding: EdgeInsets.fromLTRB(20.w, 0, 0, 0),
       child: Text(

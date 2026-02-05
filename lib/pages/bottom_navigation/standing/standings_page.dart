@@ -48,13 +48,6 @@ class _MainHomeState extends State<MainHome> with TickerProviderStateMixin {
   void initState() {
     super.initState();
     scrollToZero();
-    requestSeasonByLeagueId(39);
-  }
-
-  void requestSeasonByLeagueId(int leagueId) {
-    context
-        .read<AvailableSeasonsBloc>()
-        .add(AvailableSeasonsRequested(leagueId: leagueId));
   }
 
   Future<void> scrollToZero() async {
@@ -70,10 +63,6 @@ class _MainHomeState extends State<MainHome> with TickerProviderStateMixin {
           index: index,
           duration: const Duration(milliseconds: 350),
           alignment: 0);
-    }
-
-    if (index < 38) {
-      requestSeasonByLeagueId(leagueids[index]);
     }
   }
 
@@ -455,7 +444,6 @@ class _MainHomeState extends State<MainHome> with TickerProviderStateMixin {
                                     tabController?.animateTo(0,
                                         duration:
                                             const Duration(milliseconds: 950));
-                                    requestSeasonByLeagueId(leagueids[index]);
                                   },
                                   child: SizedBox(
                                     width: 70.h,

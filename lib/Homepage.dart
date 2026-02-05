@@ -1,9 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
-import 'dart:io';
-
-import 'package:app_links/app_links.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
@@ -13,15 +8,12 @@ import 'package:flutter_open_app_settings/flutter_open_app_settings.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
-import 'package:permission_handler/permission_handler.dart';
 import 'package:permission_handler/permission_handler.dart' as AppSettings;
 
 import 'application/persistent_player/persistent_player_bloc.dart';
 import 'application/persistent_player/persistent_player_state.dart';
 import 'localization/demo_localization.dart';
 import 'main.dart';
-import 'notifications/notifier.dart';
 import 'pages/appbar_pages/enadamt/enadamt_new.dart';
 import 'pages/appbar_pages/enadamt/live_audio_player.dart';
 import 'pages/appbar_pages/news/foryou/foryou.dart';
@@ -483,9 +475,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 BlocBuilder<PersistentPlayerBloc, PersistentPlayerState>(
   builder: (context, state) {
-    print("PersistentPlayerBloc → status = ${state.status}");           // ← add
-    print("PersistentPlayerBloc → has data? ${state.liveLink.isNotEmpty}"); // ← add
-
     if (state.status == PersistentPlayerStatus.hidden) {
       return const SizedBox.shrink();
     }

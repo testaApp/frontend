@@ -18,15 +18,24 @@ class NewsState {
     this.transfernews = const [],
     this.forYouNews = const [],
     this.leagueNews = const [],
+    this.teamNews = const [],
+    this.playerNews = const [],
     this.TransferNews = const [],
     this.newsStatus = NewsRequest.unknown,
     this.leagueNewsStatus = NewsRequest.unknown,
+    this.teamNewsStatus = NewsRequest.unknown,
+    this.playerNewsStatus = NewsRequest.unknown,
     this.ids = const {},
     this.detail = const {},
     this.currentPage = 0,
     this.forYouCurrentPage = 0,
+    this.leaguesCurrentPage = 0,
+    this.teamCurrentPage = 0,
+    this.playerCurrentPage = 0,
     this.isNextPageLoading = false,
     this.isLeaguesNextPageLoading = false,
+    this.isTeamNextPageLoading = false,
+    this.isPlayerNextPageLoading = false,
     this.isForYouNextPageLoading = false,
     this.isTransferNextPageLoading = false,
     this.isLastPage = false,
@@ -37,13 +46,11 @@ class NewsState {
     this.newsRefreshing = false,
     this.transferNewsRefreshing = false,
     this.forYouNewsRefreshing = false,
-    this.leaguesCurrentPage = 0,
     this.topTransferNews = const [],
     this.isTopTransferNextPageLoading = false,
     this.topTransfernewsStatus = NewsRequest.unknown,
     this.topTransferCurrentPage = 0,
     this.transferCurrentPage = 0,
-    // Trending news fields
     this.trendingNews = const [],
     this.isTrendingNextPageLoading = false,
     this.trendingNewsStatus = NewsRequest.unknown,
@@ -60,18 +67,23 @@ class NewsState {
   List<News> news;
   List<News> transfernews;
   List<News> leagueNews;
+  List<News> teamNews;
+  List<News> playerNews;
   List<News> forYouNews;
 
   List<TransferModel> TransferNews;
   List<TransferModel> topTransferNews;
-  List<News> trendingNews; // Trending news list
+  List<News> trendingNews;
 
   final NewsRequest transfernewsStatus;
   final NewsRequest newsStatus;
   final NewsRequest forYouNewsStatus;
   final NewsRequest leagueNewsStatus;
+  final NewsRequest teamNewsStatus;
+  final NewsRequest playerNewsStatus;
   final NewsRequest topTransfernewsStatus;
-  final NewsRequest trendingNewsStatus; // Trending news status
+  final NewsRequest trendingNewsStatus;
+
   final bool isTrendingLastPage;
   final Set<String> ids;
   final Map detail;
@@ -79,16 +91,20 @@ class NewsState {
   int currentPage;
   int forYouCurrentPage;
   int leaguesCurrentPage;
+  int teamCurrentPage;
+  int playerCurrentPage;
   int topTransferCurrentPage;
   int transferCurrentPage;
-  int trendingCurrentPage; // Current page for trending news
+  int trendingCurrentPage;
 
   final bool isNextPageLoading;
   final bool isForYouNextPageLoading;
   final bool isLeaguesNextPageLoading;
+  final bool isTeamNextPageLoading;
+  final bool isPlayerNextPageLoading;
   final bool isTransferNextPageLoading;
   final bool isTopTransferNextPageLoading;
-  final bool isTrendingNextPageLoading; // Loading flag for trending news
+  final bool isTrendingNextPageLoading;
 
   final bool isLastPage;
   final bool isForYouLastPage;
@@ -98,7 +114,7 @@ class NewsState {
   final bool newsRefreshing;
   final bool forYouNewsRefreshing;
   final bool transferNewsRefreshing;
-  final bool trendingNewsRefreshing; // Refresh flag for trending news
+  final bool trendingNewsRefreshing;
 
   final Map<String, List<News>> forYouTeamNews;
   final Map<String, List<News>> forYouPlayerNews;
@@ -112,29 +128,37 @@ class NewsState {
     List<News>? transfernews,
     List<News>? forYouNews,
     List<News>? leagueNews,
+    List<News>? teamNews,
+    List<News>? playerNews,
     List<TransferModel>? TransferNews,
     List<TransferModel>? topTransferNews,
-    List<News>? trendingNews, // Add trending news field
+    List<News>? trendingNews,
     NewsRequest? newsStatus,
     NewsRequest? transfernewsStatus,
     NewsRequest? forYouNewsStatus,
     NewsRequest? leagueNewsStatus,
+    NewsRequest? teamNewsStatus,
+    NewsRequest? playerNewsStatus,
     NewsRequest? topTransfernewsStatus,
-    NewsRequest? trendingNewsStatus, // Add trending news status
+    NewsRequest? trendingNewsStatus,
     Set<String>? ids,
     Map? detail,
     int? currentPage,
     int? forYouCurrentPage,
     int? leaguesCurrentPage,
+    int? teamCurrentPage,
+    int? playerCurrentPage,
     int? topTransferCurrentPage,
     int? transferCurrentPage,
-    int? trendingCurrentPage, // Add trending news current page
+    int? trendingCurrentPage,
     bool? isNextPageLoading,
     bool? isForYouNextPageLoading,
     bool? isLeaguesNextPageLoading,
+    bool? isTeamNextPageLoading,
+    bool? isPlayerNextPageLoading,
     bool? isTransferNextPageLoading,
     bool? isTopTransferNextPageLoading,
-    bool? isTrendingNextPageLoading, // Add trending news loading flag
+    bool? isTrendingNextPageLoading,
     bool? isLastPage,
     bool? isForYouLastPage,
     bool? isTrendingLastPage,
@@ -142,7 +166,7 @@ class NewsState {
     bool? newsRefreshing,
     bool? forYouNewsRefreshing,
     bool? transferNewsRefreshing,
-    bool? trendingNewsRefreshing, // Add trending news refresh flag
+    bool? trendingNewsRefreshing,
     Map<String, List<News>>? forYouTeamNews,
     Map<String, List<News>>? forYouPlayerNews,
     Map<String, String>? teamNames,
@@ -155,23 +179,28 @@ class NewsState {
         transfernews: transfernews ?? this.transfernews,
         forYouNews: forYouNews ?? this.forYouNews,
         leagueNews: leagueNews ?? this.leagueNews,
+        teamNews: teamNews ?? this.teamNews,
+        playerNews: playerNews ?? this.playerNews,
         TransferNews: TransferNews ?? this.TransferNews,
         topTransferNews: topTransferNews ?? this.topTransferNews,
-        trendingNews:
-            trendingNews ?? this.trendingNews, // Add trending news to copyWith
+        trendingNews: trendingNews ?? this.trendingNews,
         newsStatus: newsStatus ?? this.newsStatus,
         transfernewsStatus: transfernewsStatus ?? this.transfernewsStatus,
         forYouNewsStatus: forYouNewsStatus ?? this.forYouNewsStatus,
         leagueNewsStatus: leagueNewsStatus ?? this.leagueNewsStatus,
+        teamNewsStatus: teamNewsStatus ?? this.teamNewsStatus,
+        playerNewsStatus: playerNewsStatus ?? this.playerNewsStatus,
         topTransfernewsStatus:
             topTransfernewsStatus ?? this.topTransfernewsStatus,
-        trendingNewsStatus: trendingNewsStatus ??
-            this.trendingNewsStatus, // Add trending news status to copyWith
+        trendingNewsStatus:
+            trendingNewsStatus ?? this.trendingNewsStatus,
         ids: ids ?? this.ids,
         detail: detail ?? this.detail,
         currentPage: currentPage ?? this.currentPage,
         forYouCurrentPage: forYouCurrentPage ?? this.forYouCurrentPage,
         leaguesCurrentPage: leaguesCurrentPage ?? this.leaguesCurrentPage,
+        teamCurrentPage: teamCurrentPage ?? this.teamCurrentPage,
+        playerCurrentPage: playerCurrentPage ?? this.playerCurrentPage,
         topTransferCurrentPage:
             topTransferCurrentPage ?? this.topTransferCurrentPage,
         transferCurrentPage: transferCurrentPage ?? this.transferCurrentPage,
@@ -181,6 +210,10 @@ class NewsState {
             isForYouNextPageLoading ?? this.isForYouNextPageLoading,
         isLeaguesNextPageLoading:
             isLeaguesNextPageLoading ?? this.isLeaguesNextPageLoading,
+        isTeamNextPageLoading:
+            isTeamNextPageLoading ?? this.isTeamNextPageLoading,
+        isPlayerNextPageLoading:
+            isPlayerNextPageLoading ?? this.isPlayerNextPageLoading,
         isTransferNextPageLoading:
             isTransferNextPageLoading ?? this.isTransferNextPageLoading,
         isTopTransferNextPageLoading:

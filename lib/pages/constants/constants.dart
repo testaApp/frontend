@@ -169,4 +169,121 @@ List<int> leagueidsForMatches = [
   30,
   33,
 ];
+
+const List<String> _leagueLocalizationKeys = [
+  'premier_league',
+  'champions_league',
+  'ethiopian_premier_league',
+  'la_liga',
+  'ligue_1',
+  'serie_a',
+  'bundesliga',
+  'europa_league',
+  'saudi_pro_league',
+  'fa_cup',
+  'carabao_efl',
+  'english_league_one',
+  'english_league_two',
+  'english_champions_ship',
+  'turkey_lig_1',
+  'egypt_premier_league',
+  'south_africa_premier_soccer_league',
+  'MLS',
+  'netherland_erdivisie',
+  'belgium_jupiler_pro_league',
+  'qatar_stars_league',
+  'portugal_primeira_liga',
+  'scotland_premiership',
+  'african_cup',
+  'european_cup',
+  'european_nations_league',
+  'copa_america',
+  'olympicsmen',
+  'wc_qualification',
+];
+
+const List<String> _leagueEnglishFallback = [
+  'Premier League',
+  'Champions League',
+  'Ethiopian Premier League',
+  'La Liga',
+  'Ligue 1',
+  'Serie A',
+  'Bundesliga',
+  'Europa League',
+  'Saudi Pro League',
+  'FA Cup',
+  'Carabao Cup',
+  'EFL League One',
+  'EFL League Two',
+  'EFL Championship',
+  'Turkish Lig 1',
+  'Egypt Premier League',
+  'South Africa Premier Soccer League',
+  'MLS',
+  'Eredivisie',
+  'Belgian Jupiler Pro League',
+  'Qatar Stars League',
+  'Primeira Liga',
+  'Scottish Premiership',
+  'African Cup',
+  'European Cup',
+  'European Nations League',
+  'Copa America',
+  'Olympics Men',
+  'World Cup Qualification',
+];
+
+List<String> getLocalizedLeagueNames() {
+  return [
+    DemoLocalizations.premierLeague,
+    DemoLocalizations.championsLeague,
+    DemoLocalizations.ethiopianPremierLeague,
+    DemoLocalizations.laLiga,
+    DemoLocalizations.ligue1,
+    DemoLocalizations.serieA,
+    DemoLocalizations.bundesliga,
+    DemoLocalizations.europaLeague,
+    DemoLocalizations.saudiProLeague,
+    DemoLocalizations.faCup,
+    DemoLocalizations.carabaoEFL,
+    DemoLocalizations.englishLeagueOne,
+    DemoLocalizations.englishLeagueTwo,
+    DemoLocalizations.englishChampionsShip,
+    DemoLocalizations.turkeyLig1,
+    DemoLocalizations.egyptPremierLeague,
+    DemoLocalizations.southAfricaPremierSoccerLeague,
+    DemoLocalizations.MLS,
+    DemoLocalizations.netherlandEredivisie,
+    DemoLocalizations.belgiumJupilerProLeague,
+    DemoLocalizations.qatarStarsLeague,
+    DemoLocalizations.portugalPrimeiraLiga,
+    DemoLocalizations.scotlandPremiership,
+    DemoLocalizations.africanCup,
+    DemoLocalizations.europeanCup,
+    DemoLocalizations.europeanNationsLeague,
+    DemoLocalizations.copaAmerica,
+    DemoLocalizations.olympicsmen,
+    DemoLocalizations.wcQualification,
+  ];
+}
+
+String leagueNameForIndex(int index) {
+  if (index < 0 || index >= _leagueLocalizationKeys.length) {
+    return '';
+  }
+
+  final key = _leagueLocalizationKeys[index];
+  final englishName = DemoLocalizations.getLocalizedValue('en', key).trim();
+  if (englishName.isNotEmpty) {
+    return englishName;
+  }
+
+  if (index < _leagueEnglishFallback.length) {
+    return _leagueEnglishFallback[index];
+  }
+
+  return '';
+}
+
 String content = 'standing';

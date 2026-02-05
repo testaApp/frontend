@@ -144,6 +144,8 @@ class CheckFollowingPodcast extends FollowingEvent {
 
 class FetchAndSaveFavoritePodcasts extends FollowingEvent {}
 
+class LoadFollowedPodcasts extends FollowingEvent {}
+
 // ========== SYNC ==========
 
 class SyncPendingOperations extends FollowingEvent {}

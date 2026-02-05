@@ -46,15 +46,41 @@ class ForYouRefreshRequested extends NewsEvent {
 }
 
 class LeagueNewsRequested extends NewsEvent {
-  LeagueNewsRequested({required this.language, required this.leagueId});
-  String language;
-  int leagueId;
+  final String leagueName;
+  final String language;
+  LeagueNewsRequested({required this.leagueName, required this.language});
 }
 
 class LeagueNewsNextPageRequested extends NewsEvent {
-  LeagueNewsNextPageRequested({required this.language, required this.leagueId});
+  LeagueNewsNextPageRequested({required this.language, required this.leagueName});
   String language;
-  int leagueId;
+  String leagueName;
+}
+
+// ✅ NEW: Team news
+class TeamNewsRequested extends NewsEvent {
+  final String teamName;
+  final String language;
+  TeamNewsRequested({required this.teamName, required this.language});
+}
+
+class TeamNewsNextPageRequested extends NewsEvent {
+  final String teamName;
+  final String language;
+  TeamNewsNextPageRequested({required this.teamName, required this.language});
+}
+
+// ✅ NEW: Player news
+class PlayerNewsRequested extends NewsEvent {
+  final String playerName;
+  final String language;
+  PlayerNewsRequested({required this.playerName, required this.language});
+}
+
+class PlayerNewsNextPageRequested extends NewsEvent {
+  final String playerName;
+  final String language;
+  PlayerNewsNextPageRequested({required this.playerName, required this.language});
 }
 
 class TopTransferRequested extends NewsEvent {
@@ -64,19 +90,16 @@ class TopTransferRequested extends NewsEvent {
 
 class TrendingNewsRequested extends NewsEvent {
   final String language;
-
   TrendingNewsRequested({required this.language});
 }
 
 class TrendingNewsRefreshRequested extends NewsEvent {
   final String language;
-
   TrendingNewsRefreshRequested({required this.language});
 }
 
 class TrendingNewsLoadNextPage extends NewsEvent {
   final String language;
-
   TrendingNewsLoadNextPage({required this.language});
 }
 

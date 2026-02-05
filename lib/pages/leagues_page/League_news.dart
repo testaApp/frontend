@@ -13,8 +13,8 @@ import '../constants/colors.dart';
 import '../constants/text_utils.dart';
 
 class LeagueNews extends StatefulWidget {
-  final int leagueId;
-  const LeagueNews({super.key, required this.leagueId});
+  final String leagueName;
+  const LeagueNews({super.key, required this.leagueName});
 
   @override
   State<LeagueNews> createState() => _LeagueNewsState();
@@ -28,7 +28,7 @@ class _LeagueNewsState extends State<LeagueNews> {
     super.initState();
     _scrollController.addListener(_scrollListener);
     context.read<NewsBloc>().add(LeagueNewsRequested(
-        language: localLanguageNotifier.value, leagueId: widget.leagueId));
+        language: localLanguageNotifier.value, leagueName: widget.leagueName));
   }
 
   void _scrollListener() {
@@ -39,7 +39,7 @@ class _LeagueNewsState extends State<LeagueNews> {
 
     if (shouldLoadNextPage) {
       context.read<NewsBloc>().add(LeagueNewsNextPageRequested(
-          language: localLanguageNotifier.value, leagueId: widget.leagueId));
+          language: localLanguageNotifier.value, leagueName: widget.leagueName));
     }
   }
 
@@ -97,7 +97,7 @@ class _LeagueNewsState extends State<LeagueNews> {
                     onPressed: () {
                       context.read<NewsBloc>().add(LeagueNewsRequested(
                           language: localLanguageNotifier.value,
-                          leagueId: widget.leagueId));
+                          leagueName: widget.leagueName));
                     },
                     child: Text(DemoLocalizations.tryAgain),
                   ),

@@ -45,6 +45,8 @@ class _NewsDetailPageState extends State<NewsDetailPage>
   int _currentPage = 0;
   final ScrollController _scrollController = ScrollController();
   double _scrollOffset = 0;
+  bool _hasError = false;
+  String _errorMessage = '';
 
   @override
   void initState() {
@@ -68,19 +70,32 @@ class _NewsDetailPageState extends State<NewsDetailPage>
 
   Future<void> _loadNewsData() async {
     try {
-      if (widget.news != null) {
+      if (widget.id != null) {
+        final detail = await api.getDetails(
+          widget.id!,
+          localLanguageNotifier.value,
+        );
+        _news = News.fromJson(detail.data);
+        _hasError = false;
+      } else if (widget.news != null) {
         _news = widget.news;
-      } else if (widget.id != null) {
-        _news = await api.getNewsById(widget.id!, localLanguageNotifier.value);
+        _hasError = false;
       }
-    } catch (e) {
-      // Handle error
+    } catch (e, stack) {
+      debugPrint("News load error: $e\n$stack");
+      _hasError = true;
+      _errorMessage = e.toString().contains("SocketException") ||
+              e.toString().contains("Failed host")
+          ? "No internet connection"
+          : "Failed to load news\n${e.toString()}";
     } finally {
       if (mounted) {
         setState(() {
           _isLoading = false;
         });
-        _checkIfBookmarked();
+        if (_news != null) {
+          _checkIfBookmarked();
+        }
       }
     }
   }
@@ -158,18 +173,7 @@ class _NewsDetailPageState extends State<NewsDetailPage>
     super.dispose();
   }
 
-  ImageProvider _getSourceImage() {
-    final sourceName = _news?.sourcename ?? '';
-    final assetPath = sourceImageMap[sourceName];
-
-    if (assetPath != null) {
-      return AssetImage(assetPath);
-    }
-    return const AssetImage('assets/default_source.png');
-  }
-
   String _getLocalizedCaption() {
-    final currentLanguage = localLanguageNotifier.value;
     return _news?.figCaption ?? '';
   }
 
@@ -186,7 +190,51 @@ class _NewsDetailPageState extends State<NewsDetailPage>
       );
     }
 
-    final appBarOpacity = (_scrollOffset / 200).clamp(0.0, 0.85);
+    if (_hasError || _news == null) {
+      return Scaffold(
+        body: Center(
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: 32.w),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.signal_wifi_off_rounded,
+                  size: 80.sp,
+                  color: Colors.grey.shade400,
+                ),
+                SizedBox(height: 24.h),
+                Text(
+                  _hasError ? _errorMessage : "News not available",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 18.sp,
+                    color: Colors.grey.shade700,
+                    height: 1.4,
+                  ),
+                ),
+                SizedBox(height: 32.h),
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.refresh),
+                  label: const Text("Try Again"),
+                  style: ElevatedButton.styleFrom(
+                    padding:
+                        EdgeInsets.symmetric(horizontal: 32.w, vertical: 14.h),
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _isLoading = true;
+                      _hasError = false;
+                    });
+                    _loadNewsData();
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
@@ -202,32 +250,24 @@ class _NewsDetailPageState extends State<NewsDetailPage>
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  // BACK BUTTON — now away from the edge
-                 // Inside NewsDetailPage build method
-_buildIconButton(
-  Icons.arrow_back,
-  () {
-    if (context.canPop()) {
-      context.pop();
-    } else {
-      // If we can't pop, it means we opened from a terminated state
-      context.go('/home'); // Or your home route name
-    }
-  },
-),
-
+                  _buildIconButton(
+                    Icons.arrow_back,
+                    () {
+                      if (context.canPop()) {
+                        context.pop();
+                      } else {
+                        context.go('/home');
+                      }
+                    },
+                  ),
                   Row(
                     children: [
-                      // BOOKMARK BUTTON
                       _buildIconButton(
                         isBookmarked ? Icons.bookmark : Icons.bookmark_border,
                         _toggleBookmark,
                         color: isBookmarked ? Colors.yellow : null,
                       ),
-
-                      SizedBox(width: 12.w), // proper spacing
-
-                      // SHARE BUTTON
+                      SizedBox(width: 12.w),
                       _buildIconButton(
                         Icons.share_outlined,
                         () => Share.share(
@@ -251,7 +291,6 @@ _buildIconButton(
               SliverToBoxAdapter(
                 child: Column(
                   children: [
-                    // Image Container
                     SizedBox(
                       height: 250.h,
                       width: double.infinity,
@@ -285,8 +324,8 @@ _buildIconButton(
                                           TextButton(
                                             onPressed: () {
                                               Navigator.pop(context);
-                                              _saveImage(
-                                                  _news!.mainImages[index].url);
+                                              _saveImage(_news!
+                                                  .mainImages[index].url);
                                             },
                                             child: const Text('Save'),
                                           ),
@@ -306,8 +345,6 @@ _buildIconButton(
                               );
                             },
                           ),
-
-                          // FigCaption Overlay
                           if (_news?.figCaption?.isNotEmpty ?? false)
                             Positioned(
                               bottom: 2.h,
@@ -346,8 +383,6 @@ _buildIconButton(
                         ],
                       ),
                     ),
-
-                    // Page Indicators
                     if ((_news?.mainImages.length ?? 0) > 1)
                       Padding(
                         padding: EdgeInsets.only(top: 8.h),
@@ -370,8 +405,6 @@ _buildIconButton(
                           ),
                         ),
                       ),
-
-                    // Content Section
                     Padding(
                       padding: EdgeInsets.symmetric(
                           horizontal: 20.w, vertical: 20.h),
@@ -383,14 +416,14 @@ _buildIconButton(
                             style: TextUtils.setTextStyle(
                               fontSize: 20.sp,
                               fontWeight: FontWeight.bold,
-                              color:
-                                  Theme.of(context).textTheme.titleLarge?.color,
+                              color: Theme.of(context)
+                                  .textTheme
+                                  .titleLarge
+                                  ?.color,
                               themeData: Theme.of(context),
                             ),
                           ),
                           SizedBox(height: 10.h),
-
-                          // Source Card
                           Container(
                             padding: EdgeInsets.all(12.w),
                             decoration: BoxDecoration(
@@ -407,16 +440,16 @@ _buildIconButton(
                             child: _buildSourceInfo(),
                           ),
                           SizedBox(height: 20.h),
-
-                          // News Content
                           Text(
                             _news!.summarized.toString(),
                             textAlign: TextAlign.justify,
                             style: TextUtils.setTextStyle(
                               fontSize: 16.sp,
                               height: 1.6,
-                              color:
-                                  Theme.of(context).textTheme.bodyLarge?.color,
+                              color: Theme.of(context)
+                                  .textTheme
+                                  .bodyLarge
+                                  ?.color,
                               themeData: Theme.of(context),
                             ),
                           ),
@@ -456,13 +489,13 @@ _buildIconButton(
           ),
           child: Icon(
             icon,
-            color: color ?? Colors.white, // <-- USE CUSTOM COLOR
+            color: color ?? Colors.white,
             size: 18.sp,
             shadows: [
               Shadow(
                 blurRadius: 4,
                 color: Colors.black.withOpacity(0.7),
-                offset: Offset(0, 1),
+                offset: const Offset(0, 1),
               ),
             ],
           ),
@@ -475,18 +508,21 @@ _buildIconButton(
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        // LOGO WITH FIXED SIZE (NO BACKGROUND, NO CIRCLE)
         SizedBox(
           width: 40.w,
           height: 24.h,
-          child: Image(
-            image: _getSourceImage(),
-            fit: BoxFit.contain, // keep original proportions
-          ),
+          child: _news?.sourceimage != null && _news!.sourceimage!.isNotEmpty
+              ? CachedNetworkImage(
+                  imageUrl: _news!.sourceimage!,
+                  fit: BoxFit.contain,
+                  placeholder: (context, url) =>
+                      const CircularProgressIndicator(strokeWidth: 1),
+                  errorWidget: (context, url, error) =>
+                      const Icon(Icons.business, size: 20, color: Colors.grey),
+                )
+              : Image.asset('assets/testa_logo.png', fit: BoxFit.contain),
         ),
-
         SizedBox(width: 12.w),
-
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -520,7 +556,7 @@ _buildIconButton(
                   SizedBox(width: 4.w),
                   Expanded(
                     child: Text(
-                      formatTimeForNews(_news!.time),
+                      formatTimeForNews(_news!.publishedDate ?? ''),
                       style: TextUtils.setTextStyle(
                         fontSize: 12.sp,
                         color: Colors.grey,
@@ -623,14 +659,6 @@ _buildIconButton(
     }
   }
 }
-
-final Map<String, String> sourceImageMap = {
-  '90minNews': 'assets/90mins_logo.png',
-  'hatrick sport': 'assets/hatricknews_logo.png',
-  'Soccer Ethiopia': 'assets/soccerEt_logo.png',
-  'transfer market': 'assets/transfer_logo.png',
-  'athletic news': 'assets/theathletic_logo.png',
-};
 
 class ScrollingFigCaption extends StatefulWidget {
   final String caption;

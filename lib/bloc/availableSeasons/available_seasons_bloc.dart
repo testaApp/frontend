@@ -30,15 +30,23 @@ class AvailableSeasonsBloc
 
         print('🗓️ Parsed seasons: $seasons');
 
-        // Get the most recent valid season
+        // Get the most recent season that actually has standings data
         String currentSeason = '';
         for (String season in seasons) {
           try {
             final response = await http.get(Uri.parse(
                 '$url/api/leagues/standingsbyseason/?leagueId=${event.leagueId}&season=$season'));
             if (response.statusCode == 200) {
-              currentSeason = season;
-              break;
+              final parsed = jsonDecode(response.body);
+              final overall = parsed['overall'];
+              final hasData = overall is List &&
+                  overall.isNotEmpty &&
+                  overall.first is List &&
+                  (overall.first as List).isNotEmpty;
+              if (hasData) {
+                currentSeason = season;
+                break;
+              }
             }
           } catch (e) {
             continue;
@@ -50,8 +58,11 @@ class AvailableSeasonsBloc
         emit(state.copyWith(
             seasons: seasons,
             status: AvailableSeasonsStatus.requestSuccessed,
-            currentSeason:
-                currentSeason.isNotEmpty ? currentSeason : seasons[1]));
+            currentSeason: currentSeason.isNotEmpty
+                ? currentSeason
+                : (seasons.isNotEmpty ? seasons.first : ''),
+            leagueId: event.leagueId,
+            requestId: state.requestId + 1));
       } else {
         print('❌ Failed to fetch seasons. Status code: ${response.statusCode}');
       }

@@ -263,22 +263,22 @@ GoRouter createRoute(String initialLocation) {
           return IntroductionPage(selectedLanguage: selectedLanguage);
         },
       ),
-      _createGoRoute(
-        path: '/newsDetail/:id',
-        name: RouteNames.newsDetail,
-        builder: (context, state) {
-          final id = state.pathParameters['id'];
-          final news = state.extra as News?;
-          
-          // Handle language from query parameters (deep link)
-          final lang = state.uri.queryParameters['lang'];
-          if (lang != null && lang.isNotEmpty) {
-            localLanguageNotifier.value = lang;
-          }
-          
-          return NewsDetailPage(news: news, id: id);
-        },
-      ),
+_createGoRoute(
+  path: '/newsDetail/:id',
+  name: RouteNames.newsDetail,
+  builder: (context, state) {
+    final id = state.pathParameters['id'];
+
+    // Handle language from query parameters (deep link)
+    final lang = state.uri.queryParameters['lang'];
+    if (lang != null && lang.isNotEmpty) {
+      localLanguageNotifier.value = lang;
+    }
+
+    return NewsDetailPage(id: id);
+  },
+),
+
       _createGoRoute(
         path: '/notificationSettings',
         name: RouteNames.notificationSettings,

@@ -195,8 +195,10 @@ class MyAudioHandler extends BaseAudioHandler {
   }
 
   UriAudioSource _createAudioSource(MediaItem mediaItem) {
+    final dynamic urlValue = mediaItem.extras?['url'] ?? mediaItem.id;
+    final String url = urlValue.toString();
     return AudioSource.uri(
-      Uri.parse(mediaItem.extras!['url'] as String),
+      Uri.parse(url),
       tag: mediaItem,
     );
   }
@@ -280,9 +282,25 @@ class MyAudioHandler extends BaseAudioHandler {
   }
 
   @override
-  Future<void> playMediaItem(mediaItem) async {
-    await _player.setUrl(mediaItem.id);
-    await _player.play();
+  Future<void> playMediaItem(MediaItem mediaItem) async {
+    try {
+      await _player.stop();
+      await _playlist.clear();
+      await _playlist.add(_createAudioSource(mediaItem));
+      await _player.setAudioSource(
+        _playlist,
+        initialIndex: 0,
+        initialPosition: Duration.zero,
+      );
+
+      queue.add([mediaItem]);
+      this.mediaItem.add(mediaItem);
+
+      await _player.play();
+    } catch (e) {
+      debugPrint('Audio playMediaItem error: $e');
+      rethrow;
+    }
   }
 
   Future<void> playSongAtIndex(int index) async {

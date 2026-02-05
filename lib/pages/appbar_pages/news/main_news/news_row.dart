@@ -2,12 +2,10 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:http/http.dart' as http;
 import 'package:shimmer/shimmer.dart';
 
 import '../../../../components/timeFormatter.dart';
 import '../../../../models/news.dart';
-import '../../../../util/baseUrl.dart';
 import '../../../constants/text_utils.dart';
 import 'news_detail.dart';
 
@@ -15,7 +13,6 @@ import 'news_detail.dart';
 class Newsinrow extends StatelessWidget {
   Newsinrow({super.key, required this.news});
   final News news;
-  String url = BaseUrl().url;
 
   @override
   Widget build(BuildContext context) {
@@ -29,10 +26,10 @@ class Newsinrow extends StatelessWidget {
               await Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => NewsDetailPage(news: news),
+                  builder: (context) => NewsDetailPage(id: news.id),
+                  
                 ),
               );
-              await pushDetails(news.id);
             } catch (e) {}
           },
           child: Align(
@@ -54,7 +51,6 @@ class Newsinrow extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  // Thumbnail (unchanged)
                   ClipRRect(
                     borderRadius: const BorderRadius.only(
                       topLeft: Radius.circular(5.0),
@@ -88,16 +84,13 @@ class Newsinrow extends StatelessWidget {
                     ),
                   ),
 
-                  // Text section with better spacing
                   Expanded(
                     child: Padding(
                       padding: EdgeInsets.symmetric(
-                          horizontal: 8.w,
-                          vertical: 6.h), // More balanced vertical space
+                          horizontal: 8.w, vertical: 6.h),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Title
                           Text(
                             news.summarizedTitle.toString(),
                             maxLines: 2,
@@ -139,7 +132,7 @@ class Newsinrow extends StatelessWidget {
                                 ),
                               ),
                               Text(
-                                formatTimeForNews(news.time),
+                                formatTimeForNews(news.publishedDate ?? ''),
                                 style: TextUtils.setTextStyle(
                                   color: Theme.of(context)
                                       .colorScheme
@@ -160,15 +153,5 @@ class Newsinrow extends StatelessWidget {
         ),
       ],
     );
-  }
-}
-
-Future<int> pushDetails(String id) async {
-  final String url = BaseUrl().url;
-  try {
-    final response = await http.get(Uri.parse('$url/details/$id'));
-    return response.statusCode;
-  } catch (e) {
-    rethrow;
   }
 }

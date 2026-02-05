@@ -207,7 +207,7 @@ class SavedNewsItem extends StatelessWidget {
                     ),
                     SizedBox(height: 4.h),
                     Text(
-                      '| ${formatTimeForNews(news.time)}',
+                      '| ${formatTimeForNews(news.publishedDate ?? '')}',
                       style: TextUtils.setTextStyle(
                         color: isDarkMode ? Colors.grey[300] : Colors.grey[600],
                         fontSize: 12.sp,

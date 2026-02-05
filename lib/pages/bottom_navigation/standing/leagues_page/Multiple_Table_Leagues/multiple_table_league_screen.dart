@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:tab_indicator_styler/tab_indicator_styler.dart';
 
+import '../../../../../bloc/availableSeasons/available_seasons_bloc.dart';
+import '../../../../../bloc/availableSeasons/available_seasons_event.dart';
 import '../../../../../localization/demo_localization.dart';
 import '../../../../../models/leagues_page/leagues_screen_model.dart';
 import '../../../../constants/colors.dart';
 import '../../../../constants/constants.dart';
 import '../../../../constants/text_utils.dart';
+import '../../../../leagues_page/League_news.dart';
 import '../../../../leagues_page/league_top_players.dart';
 import '../seasons.dart';
 import 'Multiple_table_standing_view.dart';
@@ -58,6 +62,10 @@ class _MultipleTableLeagueScreenState extends State<MultipleTableLeagueScreen>
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
         CurvedAnimation(parent: _animationController, curve: Curves.easeIn));
 
+    context.read<AvailableSeasonsBloc>().add(
+          AvailableSeasonsRequested(leagueId: leagueids[widget.current]),
+        );
+
     // Initialize pages and tabs
     _initializePages();
 
@@ -83,6 +91,13 @@ class _MultipleTableLeagueScreenState extends State<MultipleTableLeagueScreen>
       leagueId: leagueids[widget.current],
     ));
     tabBarNames.add(DemoLocalizations.games);
+
+    if (widget.screenModel.newsPage == true) {
+      Pages.add(LeagueNews(
+        leagueName: leagueNameForIndex(widget.current),
+      ));
+      tabBarNames.add(DemoLocalizations.news);
+    }
 
     if (widget.screenModel.playerStat == true) {
       Pages.add(TopScorersPage(

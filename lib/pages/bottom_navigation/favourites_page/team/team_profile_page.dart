@@ -16,17 +16,21 @@ import 'package:tab_indicator_styler/tab_indicator_styler.dart';
 import '../../../../application/following/following_bloc.dart';
 import '../../../../application/following/following_event.dart';
 import '../../../../application/following/following_state.dart';
+import '../../../../bloc/news/news_bloc.dart';
+import '../../../../bloc/news/news_event.dart';
 import '../../../../components/dominant_color_generator.dart';
 import '../../../../localization/demo_localization.dart';
 import '../../../../main.dart';
 import '../../../../models/teamName.dart';
 import '../../../../services/analytics_service.dart';
+import '../../../appbar_pages/news/main_news/widgets/team_news.dart';
 import '../../../constants/colors.dart';
 import '../../../constants/text_utils.dart';
 import '../favourites_page/player/matches_view/matches/matches_view.dart';
 import '../favourites_page/teams/teams_page_standing.dart';
 import '../favourites_page/teams/team_squad_page.dart';
 import '../favourites_page/teams/teams_statistics_page.dart';
+
 
 class TeamProfilePage extends StatefulWidget {
   final TeamName teamName;
@@ -44,24 +48,32 @@ class _TeamProfilePageState extends State<TeamProfilePage>
   double _scrollOffset = 0;
   bool _isColorLoading = true;
 
-final FollowingAnalyticsService _analyticsService = FollowingAnalyticsService();
+  final FollowingAnalyticsService _analyticsService =
+      FollowingAnalyticsService();
+
   @override
   bool get wantKeepAlive => true;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this); // ✅ 5 tabs now
     _scrollController.addListener(_onScroll);
 
-   // Fire BLoC event asynchronously to not block UI
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<FollowingBloc>().add(LoadFollowedTeams());
       context
           .read<FollowingBloc>()
           .add(CheckFollowingTeam(teamId: widget.teamName.id));
-    
-    // ✨ ADD THIS - Track team profile view
+
+      // ✅ Fire team news fetch
+      context.read<NewsBloc>().add(
+            TeamNewsRequested(
+              teamName: widget.teamName.englishName,
+              language: localLanguageNotifier.value,
+            ),
+          );
+
       _analyticsService.logEvent(
         name: 'team_profile_viewed',
         parameters: {
@@ -71,7 +83,7 @@ final FollowingAnalyticsService _analyticsService = FollowingAnalyticsService();
         },
       );
     });
-    // Load color asynchronously with proper error handling
+
     _setBgColor();
   }
 
@@ -114,7 +126,7 @@ final FollowingAnalyticsService _analyticsService = FollowingAnalyticsService();
 
   @override
   Widget build(BuildContext context) {
-    super.build(context); // Required for AutomaticKeepAliveClientMixin
+    super.build(context);
     final team = widget.teamName;
     final name = _getLocalizedName(team);
 
@@ -134,8 +146,6 @@ final FollowingAnalyticsService _analyticsService = FollowingAnalyticsService();
     );
   }
 
-  // ================= HEADER =================
-
   SliverAppBar _buildHeader(TeamName team, String name) {
     return SliverAppBar(
       expandedHeight: 180.h,
@@ -154,8 +164,6 @@ final FollowingAnalyticsService _analyticsService = FollowingAnalyticsService();
       ),
     );
   }
-
-  // ================= TABS =================
 
   Widget _buildTabBar() {
     return Container(
@@ -188,6 +196,7 @@ final FollowingAnalyticsService _analyticsService = FollowingAnalyticsService();
           Tab(text: DemoLocalizations.statistics),
           Tab(text: DemoLocalizations.squad),
           Tab(text: DemoLocalizations.games),
+          Tab(text: DemoLocalizations.news),
         ],
       ),
     );
@@ -196,7 +205,7 @@ final FollowingAnalyticsService _analyticsService = FollowingAnalyticsService();
   Widget _buildTabViews(TeamName team) {
     return ExtendedTabBarView(
       controller: _tabController,
-      cacheExtent: 1, // Only cache adjacent tabs, not all 4
+      cacheExtent: 1,
       children: [
         TeamsStandingPage(
           venuename: team.venuename,
@@ -208,19 +217,13 @@ final FollowingAnalyticsService _analyticsService = FollowingAnalyticsService();
           venuesurface: team.venuesurface,
           teamId: team.id.toString(),
         ),
-        TeamStatisticsPage(
-          teamId: team.id,
-        ),
+        TeamStatisticsPage(teamId: team.id),
         TeamSquadPage(teamName: team),
-        MatchesView(
-          teamId: team.id.toString(),
-          playerStatistics: const [],
-        ),
+        MatchesView(teamId: team.id.toString(), playerStatistics: const []),
+        TeamNewsPage(teamName: team.englishName),
       ],
     );
   }
-
-  // ================= CONTROLS =================
 
   Widget _buildBackButton() {
     return IconButton(
@@ -229,83 +232,80 @@ final FollowingAnalyticsService _analyticsService = FollowingAnalyticsService();
     );
   }
 
- Widget _buildFollowButton() {
-  return BlocBuilder<FollowingBloc, FollowingState>(
-    builder: (_, state) {
-      final isFollowing =
-          state.followedTeams.contains(widget.teamName.id);
+  Widget _buildFollowButton() {
+    return BlocBuilder<FollowingBloc, FollowingState>(
+      builder: (_, state) {
+        final isFollowing = state.followedTeams.contains(widget.teamName.id);
 
-      return Padding(
-        padding: EdgeInsets.only(right: 12.w),
-        child: LikeButton(
-          size: 50, // slightly larger tap target
-          isLiked: isFollowing,
-          circleColor: CircleColor(
-            start: Colors.white,
-            end: Colorscontainer.greenColor,
-          ),
-          bubblesColor: BubblesColor(
-            dotPrimaryColor: Colorscontainer.greenColor,
-            dotSecondaryColor: Colors.white,
-          ),
-          likeBuilder: (liked) {
-            return AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.black.withOpacity(0.25),
-                border: Border.all(
+        return Padding(
+          padding: EdgeInsets.only(right: 12.w),
+          child: LikeButton(
+            size: 50,
+            isLiked: isFollowing,
+            circleColor: CircleColor(
+              start: Colors.white,
+              end: Colorscontainer.greenColor,
+            ),
+            bubblesColor: BubblesColor(
+              dotPrimaryColor: Colorscontainer.greenColor,
+              dotSecondaryColor: Colors.white,
+            ),
+            likeBuilder: (liked) {
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.black.withOpacity(0.25),
+                  border: Border.all(
+                    color:
+                        liked ? Colors.white : Colors.white.withOpacity(0.25),
+                    width: liked ? 2 : 1.2,
+                  ),
+                  boxShadow: [
+                    if (liked)
+                      BoxShadow(
+                        color: Colorscontainer.greenColor.withOpacity(0.6),
+                        blurRadius: 12,
+                        spreadRadius: 1,
+                      ),
+                  ],
+                ),
+                child: Icon(
+                  liked ? Icons.favorite : Icons.favorite_border,
+                  size: 30.sp,
                   color: liked
-                      ? Colors.white // ✅ white stroke when followed
-                      : Colors.white.withOpacity(0.25),
-                  width: liked ? 2 : 1.2,
+                      ? Colorscontainer.greenColor
+                      : Colors.white.withOpacity(0.9),
                 ),
-                boxShadow: [
-                  if (liked)
-                    BoxShadow(
-                      color: Colorscontainer.greenColor.withOpacity(0.6),
-                      blurRadius: 12,
-                      spreadRadius: 1,
-                    ),
-                ],
-              ),
-              child: Icon(
-                liked ? Icons.favorite : Icons.favorite_border,
-                size: 30.sp,
-                color: liked
-                    ? Colorscontainer.greenColor
-                    : Colors.white.withOpacity(0.9),
-              ),
-            );
-          },
-          onTap: (liked) async {
-            final teamName = _getEnglishName(widget.teamName);
+              );
+            },
+            onTap: (liked) async {
+              final teamName = _getEnglishName(widget.teamName);
 
-            if (liked) {
-              context.read<FollowingBloc>().add(
-                RemoveFollowingTeam(
-                  teamId: widget.teamName.id,
-                  teamName: teamName,
-                ),
-              );
-            } else {
-              HapticFeedback.lightImpact();
-              context.read<FollowingBloc>().add(
-                FollowTeamRequested(
-                  teamId: widget.teamName.id,
-                  teamName: teamName,
-                ),
-              );
-            }
-            return !liked;
-          },
-        ),
-      );
-    },
-  );
-}
- // ================= HELPERS =================
+              if (liked) {
+                context.read<FollowingBloc>().add(
+                      RemoveFollowingTeam(
+                        teamId: widget.teamName.id,
+                        teamName: teamName,
+                      ),
+                    );
+              } else {
+                HapticFeedback.lightImpact();
+                context.read<FollowingBloc>().add(
+                      FollowTeamRequested(
+                        teamId: widget.teamName.id,
+                        teamName: teamName,
+                      ),
+                    );
+              }
+              return !liked;
+            },
+          ),
+        );
+      },
+    );
+  }
 
   String _getLocalizedName(TeamName team) {
     switch (localLanguageNotifier.value) {
@@ -321,10 +321,10 @@ final FollowingAnalyticsService _analyticsService = FollowingAnalyticsService();
     }
   }
 
-  String _getEnglishName(TeamName team) {
-    return team.englishName;
-  }
+  String _getEnglishName(TeamName team) => team.englishName;
 }
+
+
 
 // Separate widget to prevent rebuilding expensive blur on scroll
 class _HeaderBackground extends StatelessWidget {

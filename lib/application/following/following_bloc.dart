@@ -40,6 +40,7 @@ class FollowingBloc extends Bloc<FollowingEvent, FollowingState> {
     on<LoadFollowedTeams>(_handleLoadFollowedTeams);
     on<ToggleFollowPlayer>(_handleToggleFollowPlayer);
     on<FetchAndSaveFavoritePodcasts>(_handleFetchAndSaveFavoritePodcasts);
+    on<LoadFollowedPodcasts>(_handleLoadFollowedPodcasts);
     on<SyncPendingOperations>(_handleSyncPendingOperations);
     on<LoadFollowedPlayers>(_handleLoadFollowedPlayers);
     
@@ -70,7 +71,10 @@ class FollowingBloc extends Bloc<FollowingEvent, FollowingState> {
     try {
       // 1. INSTANT local update
       await _storageService.addFollowedMatch(event.matchId!);
-      emit(state.copyWith(status: Status.following));
+      emit(state.copyWith(
+        status: Status.following,
+        followedPodcasts: _storageService.getFollowedPodcasts(),
+      ));
       
       // 2. Log analytics
       await _analyticsService.logMatchFollowed(
@@ -103,7 +107,10 @@ class FollowingBloc extends Bloc<FollowingEvent, FollowingState> {
     try {
       // 1. INSTANT local update
       await _storageService.removeFollowedMatch(event.matchId!);
-      emit(state.copyWith(status: Status.notFollowing));
+      emit(state.copyWith(
+        status: Status.notFollowing,
+        followedPodcasts: _storageService.getFollowedPodcasts(),
+      ));
 
       // 2. Log analytics
       await _analyticsService.logMatchUnfollowed(
@@ -576,6 +583,14 @@ class FollowingBloc extends Bloc<FollowingEvent, FollowingState> {
       LoadFollowedPlayers event, Emitter<FollowingState> emit) async {
     emit(state.copyWith(
       followedPlayers: _storageService.getFollowedPlayers(),
+    ));
+  }
+
+  Future<void> _handleLoadFollowedPodcasts(
+      LoadFollowedPodcasts event, Emitter<FollowingState> emit) async {
+    emit(state.copyWith(
+      status: Status.success,
+      followedPodcasts: _storageService.getFollowedPodcasts(),
     ));
   }
 }

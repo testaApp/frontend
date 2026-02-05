@@ -523,7 +523,7 @@ static Future<void> initializeAwesomeNotifications() async {
             localLanguageNotifier.value = lang;
             debugPrint('→ Language updated: $lang');
           }
-          globalRouter.go('/newsDetail/$newsId');
+globalRouter.go('/newsDetail/$newsId?lang=$lang');
           return;
         }
       } 

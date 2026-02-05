@@ -23,6 +23,7 @@ import '../../../constants/text_utils.dart';
 import 'news_row.dart';
 import '../../../../bloc/highlightTv_bloc/highlightTv_bloc.dart';
 import '../../../../bloc/highlightTv_bloc/highlightTv_Event.dart';
+import '../../../../bloc/highlightTv_bloc/highlightTv_State.dart';
 import '../../../../models/HighlighTv_model.dart';
 import 'widgets/podcast_live_floating.dart';
 import '../../../../models/program_card/PodcastModel.dart';
@@ -54,6 +55,8 @@ class _NewsFeedState extends State<Newsfeed>
   final Set<String> _hiddenPodcastIds = <String>{};
   late SharedPreferences _prefs;
   bool _isPrefsInitialized = false;
+  bool _isRefreshing = false;
+  VoidCallback? _languageListener;
   Timer? _periodicTimer;
 
   @override
@@ -63,17 +66,17 @@ class _NewsFeedState extends State<Newsfeed>
   void initState() {
     super.initState();
     _initializePreferences();
-    context.read<NewsBloc>().state.currentPage = 0;
     _loadInitialData();
 
-    localLanguageNotifier.addListener(() {
+    _languageListener = () {
       if (mounted) {
         _refresh();
       }
-    });
+    };
+    localLanguageNotifier.addListener(_languageListener!);
 
     _periodicTimer = Timer.periodic(const Duration(minutes: 5), (timer) {
-      if (mounted && _isPageActive) {
+      if (mounted && _isPageActive && !_isRefreshing) {
         _refresh();
       }
     });
@@ -83,7 +86,7 @@ class _NewsFeedState extends State<Newsfeed>
     if (!mounted) return;
 
     context.read<PodcastsBloc>().add(PodcastsRequested());
-    context.read<FollowingBloc>().add(FetchAndSaveFavoritePodcasts());
+    context.read<FollowingBloc>().add(LoadFollowedPodcasts());
 
     context
         .read<NewsBloc>()
@@ -110,7 +113,9 @@ class _NewsFeedState extends State<Newsfeed>
           ads = transformAdsData(adsData);
         });
       }
-    } catch (e) {}
+    } catch (e) {
+      debugPrint('Failed to fetch ads: $e');
+    }
   }
 
   String? localizedString(String itemKey, Ads data) {
@@ -150,17 +155,64 @@ class _NewsFeedState extends State<Newsfeed>
   }
 
   Future<void> _refresh() async {
-    if (!mounted) return;
-    print('Refreshing news feed');
-    context.read<NewsBloc>().state.currentPage = 0;
+    if (!mounted || _isRefreshing) return;
+    _isRefreshing = true;
+    debugPrint('Refreshing news feed');
 
-    context
-        .read<NewsBloc>()
-        .add(RefreshRequested(language: localLanguageNotifier.value));
-    context.read<NewsBloc>().add(
-        TrendingNewsRefreshRequested(language: localLanguageNotifier.value));
-    context.read<HighlightTvBloc>().add(FetchRecentHighlights());
-    context.read<PodcastsBloc>().add(PodcastsRequested());
+    final newsCompleter = Completer<void>();
+    final trendingCompleter = Completer<void>();
+    final highlightCompleter = Completer<void>();
+    final podcastCompleter = Completer<void>();
+
+    final newsSub = context.read<NewsBloc>().stream.listen((s) {
+      if ((s.newsStatus == NewsRequest.requestSuccess ||
+              s.newsStatus == NewsRequest.requestFailure) &&
+          !newsCompleter.isCompleted) {
+        newsCompleter.complete();
+      }
+      if ((s.trendingNewsStatus == NewsRequest.requestSuccess ||
+              s.trendingNewsStatus == NewsRequest.requestFailure) &&
+          !trendingCompleter.isCompleted) {
+        trendingCompleter.complete();
+      }
+    });
+
+    final highlightSub = context.read<HighlightTvBloc>().stream.listen((s) {
+      if (s is HighlightTvLoaded || s is HighlightTvError) {
+        if (!highlightCompleter.isCompleted) highlightCompleter.complete();
+      }
+    });
+
+    final podcastSub = context.read<PodcastsBloc>().stream.listen((s) {
+      if (s.status == podcastStatus.requestSuccess ||
+          s.status == podcastStatus.requestFailure) {
+        if (!podcastCompleter.isCompleted) podcastCompleter.complete();
+      }
+    });
+
+    try {
+      context
+          .read<NewsBloc>()
+          .add(RefreshRequested(language: localLanguageNotifier.value));
+      context.read<NewsBloc>().add(
+          TrendingNewsRefreshRequested(language: localLanguageNotifier.value));
+      context.read<HighlightTvBloc>().add(FetchRecentHighlights());
+      context.read<PodcastsBloc>().add(PodcastsRequested());
+
+      await Future.wait([
+        newsCompleter.future,
+        trendingCompleter.future,
+        highlightCompleter.future,
+        podcastCompleter.future,
+      ]);
+    } catch (e) {
+      debugPrint('Error during refresh: $e');
+    } finally {
+      await newsSub.cancel();
+      await highlightSub.cancel();
+      await podcastSub.cancel();
+      _isRefreshing = false;
+    }
   }
 
   void _scrollListener() {
@@ -199,6 +251,9 @@ class _NewsFeedState extends State<Newsfeed>
   @override
   void dispose() {
     _periodicTimer?.cancel();
+    if (_languageListener != null) {
+      localLanguageNotifier.removeListener(_languageListener!);
+    }
     _scrollController.removeListener(_scrollListener);
     _scrollController.dispose();
     super.dispose();
@@ -491,7 +546,7 @@ class _NewsFeedState extends State<Newsfeed>
         return BlocBuilder<FollowingBloc, FollowingState>(
           builder: (context, followingState) {
             if (followingState.status == Status.initial) {
-              context.read<FollowingBloc>().add(FetchAndSaveFavoritePodcasts());
+              context.read<FollowingBloc>().add(LoadFollowedPodcasts());
               return const SizedBox.shrink();
             }
 

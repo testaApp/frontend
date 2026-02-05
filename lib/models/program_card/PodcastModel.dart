@@ -105,6 +105,25 @@ class PodcastModel {
     );
   }
 
+  factory PodcastModel.fromCacheJson(Map<String, dynamic> json) {
+    return PodcastModel(
+      name: json['name'] ?? '',
+      station: json['station'] ?? '',
+      avatar: json['avatar'] ?? '',
+      program: json['program'] ?? '',
+      liveLink: json['liveLink'] ?? '',
+      isLive: json['isLive'] ?? false,
+      id: json['id'] ?? '',
+      programId: json['programId'] ?? '',
+      rssLink: (json['rssLink'] as List?)
+              ?.map((x) => x.toString())
+              .toList() ??
+          const <String>[],
+      description: json['description'],
+      newpodcast: json['newpodcast'] ?? false,
+    );
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'name': name,

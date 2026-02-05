@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
+import '../main.dart';
 import '../models/details.dart';
 import '../models/news.dart';
 import '../util/api_manager/api_manager.dart';
@@ -24,7 +25,6 @@ class NewsRepository {
       if (response.data != null && response.data is List) {
         for (var json in response.data) {
           if (json != null && json is Map) {
-            // Extract mainImages as List<ImageModel>
             List<ImageModel> mainImages = [];
             if (json['mainImages'] != null && json['mainImages'] is List) {
               mainImages = (json['mainImages'] as List)
@@ -41,13 +41,11 @@ class NewsRepository {
                   ? mainImages
                   : [
                       ImageModel(
-                          url: json['sourceimage'] ?? '',
-                          caption: json['figCaption'] ?? '')
+                        url: json['sourceimage'] ?? '',
+                        caption: json['figCaption'] ?? '',
+                      )
                     ],
-              author: json['author'] ?? '',
-              figCaption: json['figCaption'] ?? '',
-              time: json['publishedDate'] ?? '',
-              summarized: json['summarized'] ?? '',
+              publishedDate: json['publishedDate'] ?? '',
               summarizedTitle: json['summarizedTitle'] ?? '',
               sourceimage: json['sourceimage'],
               sourcename: json['sourcename'],
@@ -73,7 +71,6 @@ class NewsRepository {
       if (response.data != null && response.data is Map<String, dynamic>) {
         final json = response.data;
 
-        // Extract mainImages as List<ImageModel>
         List<ImageModel> mainImages = [];
         if (json['mainImages'] != null && json['mainImages'] is List) {
           mainImages = (json['mainImages'] as List)
@@ -90,13 +87,11 @@ class NewsRepository {
               ? mainImages
               : [
                   ImageModel(
-                      url: json['sourceimage'] ?? '',
-                      caption: json['figCaption'] ?? '')
+                    url: json['sourceimage'] ?? '',
+                    caption: json['figCaption'] ?? '',
+                  )
                 ],
-          author: json['author'] ?? '',
-          figCaption: json['figCaption'] ?? '',
-          time: json['publishedDate'] ?? '',
-          summarized: json['summarized'] ?? '',
+          publishedDate: json['publishedDate'] ?? '',
           summarizedTitle: json['summarizedTitle'] ?? '',
           sourceimage: json['sourceimage'],
           sourcename: json['sourcename'],
@@ -140,13 +135,11 @@ class NewsRepository {
                   ? mainImages
                   : [
                       ImageModel(
-                          url: json['sourceimage'] ?? '',
-                          caption: json['figCaption'] ?? '')
+                        url: json['sourceimage'] ?? '',
+                        caption: json['figCaption'] ?? '',
+                      )
                     ],
-              author: json['author'] ?? '',
-              figCaption: json['figCaption'] ?? '',
-              time: json['publishedDate'] ?? '',
-              summarized: json['summarized'] ?? '',
+              publishedDate: json['publishedDate'] ?? '',
               summarizedTitle: json['summarizedTitle'] ?? '',
               sourceimage: json['sourceimage'],
               sourcename: json['sourcename'],
@@ -166,10 +159,10 @@ class NewsRepository {
   Future<List<News>> getLeagueNews({
     required int page,
     required String lang,
-    required int leagueId,
+    required String leagueName,
   }) async {
     final response = await ApiManager.fetchData(
-      '$url/api/leagues/news?leagueId=$leagueId&lang=$lang&page=$page',
+      '$url/api/leagues/news?leagueName=$leagueName&lang=$lang&page=$page',
       useRefreshToken: true,
     );
     try {
@@ -179,7 +172,6 @@ class NewsRepository {
       for (var i = 0; i < jsonData.length; i++) {
         final json = jsonData[i];
 
-        // Extract mainImages as List<ImageModel>
         List<ImageModel> mainImages = [];
         if (json['mainImages'] != null && json['mainImages'] is List) {
           mainImages = (json['mainImages'] as List)
@@ -196,13 +188,11 @@ class NewsRepository {
               ? mainImages
               : [
                   ImageModel(
-                      url: json['sourceimage'] ?? '',
-                      caption: json['figCaption'] ?? '')
+                    url: json['sourceimage'] ?? '',
+                    caption: json['figCaption'] ?? '',
+                  )
                 ],
-          author: json['author'] ?? '',
-          figCaption: json['figCaption'] ?? '',
-          time: json['publishedDate'] ?? '',
-          summarized: json['summarized'] ?? '',
+          publishedDate: json['publishedDate'] ?? '',
           summarizedTitle: json['summarizedTitle'] ?? '',
           sourceimage: json['sourceimage'],
           sourcename: json['sourcename'],
@@ -242,7 +232,6 @@ class NewsRepository {
 
           teamNames[teamId] = teamData['teamName'] ?? 'Unknown Team';
 
-          // Only add valid image URLs
           if (teamData['teamLogo'] != null &&
               teamData['teamLogo'].toString().trim().isNotEmpty) {
             teamLogos[teamId] = teamData['teamLogo'];
@@ -260,7 +249,6 @@ class NewsRepository {
 
           playerNames[playerId] = playerData['playerName'] ?? 'Unknown Player';
 
-          // Construct the player image URL using the API-Sports format
           playerImages[playerId] =
               'https://media.api-sports.io/football/players/$playerId.png';
 
@@ -300,13 +288,11 @@ class NewsRepository {
             ? mainImages
             : [
                 ImageModel(
-                    url: json['sourceimage'] ?? '',
-                    caption: json['figCaption'] ?? '')
+                  url: json['sourceimage'] ?? '',
+                  caption: json['figCaption'] ?? '',
+                )
               ],
-        author: json['author'] ?? '',
-        figCaption: json['figCaption'] ?? '',
-        time: json['publishedDate'] ?? '',
-        summarized: json['summarized'] ?? '',
+        publishedDate: json['publishedDate'] ?? '',
         summarizedTitle: json['summarizedTitle'] ?? '',
         sourceimage: json['sourceimage'],
         sourcename: json['sourcename'],
@@ -314,21 +300,52 @@ class NewsRepository {
       );
     }).toList();
   }
+
+
+  //__________________________ to get team news by team name __________________________
+  Future<List<News>> getTeamNews({
+  required int page,
+  required String lang,
+  required String teamName,
+}) async {
+  final response = await ApiManager.fetchData(
+    '$url/teamnews?name=$teamName&lang=$lang&page=$page',
+    useRefreshToken: true,
+  );
+
+  return _convertNewsListFromJson(response.data);
 }
 
-Future<Detail> getDetails(String id) async {
-  try {
-    final response = await http.get(Uri.parse('$url/details/$id'));
+//__________________________ to get player news by player name __________________________
+Future<List<News>> getPlayerNews({
+  required int page,
+  required String lang,
+  required String playerName,
+}) async {
+  final response = await ApiManager.fetchData(
+    '$url/playernews?name=$playerName&lang=$lang&page=$page',
+    useRefreshToken: true,
+  );
 
-    final resData = json.decode(response.body) as List<dynamic>;
-    final jsonData = resData[0];
-    return Detail.fromJson(jsonData);
-  } catch (e) {
-    rethrow;
+  return _convertNewsListFromJson(response.data);
+}
+
+//__________________________ to get any news details by id __________________________ 
+  Future<Detail> getDetails(String id, String lang) async {
+    try {
+      final response = await ApiManager.fetchData(
+        '$url/details/$id?lang=$lang',
+        useRefreshToken: true,
+      );
+
+      final jsonData = response.data;
+      return Detail.fromJson(jsonData);
+    } catch (e) {
+      rethrow;
+    }
   }
 }
 
-// Add this class at the end of the file, after the NewsRepository class
 class ForYouNewsResponse {
   final Map<String, List<News>> teamNews;
   final Map<String, List<News>> playerNews;

@@ -62,6 +62,7 @@ import 'bloc/mirchaweche/teams/team_profile_statistics/team_profile_statistics_b
 import 'bloc/news/news_bloc.dart';
 import 'bloc/payment_bloc/payment_bloc.dart';
 import 'application/enadamt/podcast/podcast_bloc.dart';
+import 'application/enadamt/podcast/podcast_event.dart';
 import 'bloc/quiz_bloc/quiz_bloc.dart';
 import 'bloc/social_media/social_media_bloc.dart';
 import 'bloc/standings/bloc/content_bloc.dart';
@@ -177,9 +178,10 @@ Future<void> main() async {
     builder: () => MyAudioHandler(),
     config: const AudioServiceConfig(
       androidNotificationChannelId: 'com.myapp.audio',
-      androidNotificationChannelName: 'Audio Service',
-      androidNotificationOngoing: true,
-      androidStopForegroundOnPause: true,
+      androidNotificationChannelName: 'Playback',
+      androidNotificationChannelDescription: 'Podcast playback controls',
+      androidNotificationOngoing: false,
+      androidStopForegroundOnPause: false,
       preloadArtwork: true,
     ),
   );
@@ -275,7 +277,10 @@ debugPrint('✅ Following Analytics Service initialized');
           ChangeNotifierProvider<ThemeService>(
             create: (context) => ThemeService(),
           ),
-          BlocProvider<PodcastsBloc>(create: (context) => PodcastsBloc()),
+          BlocProvider<PodcastsBloc>(
+            create: (context) => PodcastsBloc()..add(PodcastsRequested()),
+            lazy: false,
+          ),
           BlocProvider<LineupsBloc>(create: (context) => LineupsBloc()),
           BlocProvider<FavouriteplayerBloc>(
               create: (context) => FavouriteplayerBloc()),

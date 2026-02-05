@@ -6,3 +6,4 @@ class BaseUrl {
   static const String storageurl =
       'https://testanewsstorage.blob.core.windows.net/transcriptions/';
 }
+         

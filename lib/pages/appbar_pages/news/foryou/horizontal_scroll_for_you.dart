@@ -164,7 +164,7 @@ class HorizontalNewsCard extends StatelessWidget {
           ),
         ),
         Text(
-          formatTimeForNews(news.time),
+          formatTimeForNews(news.publishedDate ?? ''),
           style: TextUtils.setTextStyle(
             color: theme.colorScheme.onSurface,
           ),

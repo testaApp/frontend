@@ -50,13 +50,19 @@ class ChampionsLeagueTablesView extends StatelessWidget {
                 itemCount: listOfTables.length,
                 physics: const BouncingScrollPhysics(),
                 itemBuilder: (context, idx) {
+                  final groupFromData = listOfTables[idx].isNotEmpty
+                      ? listOfTables[idx].first.group
+                      : null;
+                  final fallbackGroup =
+                      listOfTables.length > 1 ? 'Group ${String.fromCharCode(65 + idx)}' : null;
+                  final groupName = (groupFromData != null &&
+                          groupFromData.toString().trim().isNotEmpty)
+                      ? groupFromData.toString()
+                      : fallbackGroup;
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      GroupRow(
-                        idx: idx,
-                        name: 'Group ${String.fromCharCode(65 + idx)}',
-                      ),
+                      if (groupName != null) GroupRow(idx: idx, name: groupName),
                       ListView.builder(
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),

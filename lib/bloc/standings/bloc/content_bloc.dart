@@ -21,6 +21,23 @@ class ContentBloc extends Bloc<ContentEvent, ContentState> {
     on<FetchTodaysLeagueMatches>(_handleFetchTodaysLeagueMatches);
   }
 
+  bool _hasStandingsData(Map<String, List<List<TableItem>>> data) {
+    final overall = data['overall'];
+    if (overall == null || overall.isEmpty) return false;
+    final firstGroup = overall.first;
+    if (firstGroup.isEmpty) return false;
+    return true;
+  }
+
+  String? _resolveSeason(
+      Map<String, List<List<TableItem>>> data, String? fallback) {
+    final overall = data['overall'];
+    if (overall != null && overall.isNotEmpty && overall.first.isNotEmpty) {
+      return overall.first.first.season ?? fallback;
+    }
+    return fallback;
+  }
+
   Future<void> _handleStandingRequested(
       StandingRequested event, Emitter<ContentState> emit) async {
     List<List<TableItem>> emptyList = [];
@@ -28,6 +45,9 @@ class ContentBloc extends Bloc<ContentEvent, ContentState> {
     // Emit request in progress state
     emit(state.copyWith(
       status: ContentStatus.requestInProgress,
+      leagueId: event.leagueId,
+      currentLeagueId: event.leagueId,
+      season: event.season ?? state.season,
       nestedList: {
         'overall': emptyList,
         'home': emptyList,
@@ -48,19 +68,49 @@ class ContentBloc extends Bloc<ContentEvent, ContentState> {
         retryResponse.fold(
             (failure) =>
                 emit(state.copyWith(status: ContentStatus.requestFailed)),
-            (success) => emit(state.copyWith(
-                  status: ContentStatus.requestSuccessed,
+            (success) {
+              if (!_hasStandingsData(success)) {
+                emit(state.copyWith(
+                  status: ContentStatus.requestFailed,
                   nestedList: success,
-                  season: success['overall']?[0][0].season ?? previousYear,
-                )));
+                  leagueId: event.leagueId,
+                  currentLeagueId: event.leagueId,
+                  season: previousYear,
+                  errorMessage: 'No standings data',
+                ));
+                return;
+              }
+
+              emit(state.copyWith(
+                status: ContentStatus.requestSuccessed,
+                nestedList: success,
+                leagueId: event.leagueId,
+                currentLeagueId: event.leagueId,
+                season: _resolveSeason(success, previousYear),
+              ));
+            });
       } else {
         emit(state.copyWith(status: ContentStatus.requestFailed));
       }
     }, (success) {
+      if (!_hasStandingsData(success)) {
+        emit(state.copyWith(
+          status: ContentStatus.requestFailed,
+          nestedList: success,
+          leagueId: event.leagueId,
+          currentLeagueId: event.leagueId,
+          season: event.season,
+          errorMessage: 'No standings data',
+        ));
+        return;
+      }
+
       emit(state.copyWith(
         status: ContentStatus.requestSuccessed,
         nestedList: success,
-        season: success['overall']?[0][0].season ?? event.season,
+        leagueId: event.leagueId,
+        currentLeagueId: event.leagueId,
+        season: _resolveSeason(success, event.season),
       ));
     });
   }

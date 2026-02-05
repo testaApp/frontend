@@ -14,31 +14,47 @@ import 'news_state.dart';
 
 class NewsBloc extends Bloc<NewsEvent, NewsState> {
   NewsBloc() : super(NewsState()) {
+    // Main news
     on<NewsRequested>(_handleNewsRequested);
     on<RefreshRequested>(_handleRefreshRequested);
     on<LoadNextPage>(_handleLoadNextPage);
 
+    // Trending news
     on<TrendingNewsRequested>(_handleTrendingNewsRequested);
     on<TrendingNewsRefreshRequested>(_handleTrendingNewsRefreshRequested);
     on<TrendingNewsLoadNextPage>(_handleLoadTrendingNextPage);
 
+    // Transfer news
     on<TransferNewsRequested>(_handletansferNewsPage);
     on<TransferLoadnextNewsRequested>(_handleLoadNextTransfernewsPage);
     on<TransferNewsRefreshRequested>(_handleTransferNewsRefreshRequested);
 
+    // Top transfers
     on<TopTransferRequested>(_handleTopTransferRequested);
     on<TopLoadNextTransferPage>(_handleLoadNextTopTransferPage);
 
+    // For You
     on<ForYouNewsRequested>(_handleForYouNewsRequested);
     on<ForYouLoadNextPage>(_handleLoadNextForYouPage);
     on<ForYouRefreshRequested>(_handleForYouRefreshRequested);
 
+    // League news
     on<LeagueNewsRequested>(_handleLeagueNewsRequested);
     on<LeagueNewsNextPageRequested>(_handleLeaguesLoadNextPage);
+
+    // ✅ Team news
+    on<TeamNewsRequested>(_handleTeamNewsRequested);
+    on<TeamNewsNextPageRequested>(_handleTeamNewsNextPageRequested);
+
+    // ✅ Player news
+    on<PlayerNewsRequested>(_handlePlayerNewsRequested);
+    on<PlayerNewsNextPageRequested>(_handlePlayerNewsNextPageRequested);
   }
+
   String url = BaseUrl().url;
   final NewsRepository api = NewsRepository();
 
+  // ===================== MAIN NEWS =====================
   Future<void> _handleNewsRequested(
       NewsRequested event, Emitter<NewsState> emit) async {
     try {
@@ -67,9 +83,7 @@ class NewsBloc extends Bloc<NewsEvent, NewsState> {
 
   Future<void> _handleLoadNextPage(
       LoadNextPage event, Emitter<NewsState> emit) async {
-    if (state.isNextPageLoading) {
-      return;
-    }
+    if (state.isNextPageLoading) return;
 
     emit(state.copyWith(isNextPageLoading: true));
     try {
@@ -148,6 +162,7 @@ class NewsBloc extends Bloc<NewsEvent, NewsState> {
     }
   }
 
+  // ===================== TRANSFER NEWS =====================
   Future<void> _handletansferNewsPage(
       TransferNewsRequested event, Emitter<NewsState> emit) async {
     try {
@@ -174,9 +189,7 @@ class NewsBloc extends Bloc<NewsEvent, NewsState> {
 
   Future<void> _handleLoadNextTransfernewsPage(
       TransferLoadnextNewsRequested event, Emitter<NewsState> emit) async {
-    if (state.isTransferNextPageLoading) {
-      return;
-    }
+    if (state.isTransferNextPageLoading) return;
 
     emit(state.copyWith(isTransferNextPageLoading: true));
 
@@ -225,6 +238,7 @@ class NewsBloc extends Bloc<NewsEvent, NewsState> {
     }
   }
 
+  // ===================== TOP TRANSFER =====================
   Future<void> _handleTopTransferRequested(
       TopTransferRequested event, Emitter<NewsState> emit) async {
     try {
@@ -245,7 +259,7 @@ class NewsBloc extends Bloc<NewsEvent, NewsState> {
           if (item != null) {
             TransferModel transferModel = TransferModel.fromJson(item);
             lists.add(transferModel);
-          } else {}
+          }
         }
 
         await NewsCacheManager().cacheTopTransferNews(lists);
@@ -254,7 +268,7 @@ class NewsBloc extends Bloc<NewsEvent, NewsState> {
             topTransfernewsStatus: NewsRequest.requestSuccess,
             topTransferNews: lists,
             counter: 0));
-      } else {}
+      }
     } catch (e) {
       emit(state.copyWith(
         topTransfernewsStatus: NewsRequest.requestFailure,
@@ -264,9 +278,7 @@ class NewsBloc extends Bloc<NewsEvent, NewsState> {
 
   Future<void> _handleLoadNextTopTransferPage(
       TopLoadNextTransferPage event, Emitter<NewsState> emit) async {
-    if (state.isTransferNextPageLoading) {
-      return;
-    }
+    if (state.isTransferNextPageLoading) return;
 
     emit(state.copyWith(isTopTransferNextPageLoading: true));
     try {
@@ -300,8 +312,7 @@ class NewsBloc extends Bloc<NewsEvent, NewsState> {
     }
   }
 
-// For Your new Bloc
-
+  // ===================== FOR YOU =====================
   Future<void> _handleForYouNewsRequested(
     ForYouNewsRequested event,
     Emitter<NewsState> emit,
@@ -352,7 +363,6 @@ class NewsBloc extends Bloc<NewsEvent, NewsState> {
         page: state.forYouCurrentPage + 1,
       );
 
-      // Merge new news with existing news
       final updatedTeamNews =
           Map<String, List<News>>.from(state.forYouTeamNews);
       final updatedPlayerNews =
@@ -387,23 +397,92 @@ class NewsBloc extends Bloc<NewsEvent, NewsState> {
     }
   }
 
-// League news Bloc
+  Future<void> _handleForYouRefreshRequested(
+    ForYouRefreshRequested event,
+    Emitter<NewsState> emit,
+  ) async {
+    try {
+      emit(state.copyWith(
+        forYouNewsStatus: NewsRequest.requestInProgress,
+        forYouNewsRefreshing: true,
+        forYouTeamNews: state.forYouTeamNews,
+        forYouPlayerNews: state.forYouPlayerNews,
+        teamNames: state.teamNames,
+        playerNames: state.playerNames,
+        teamLogos: state.teamLogos,
+        playerImages: state.playerImages,
+      ));
 
+      final response = await api.getForYouNews(
+        lang: event.language,
+        page: 0,
+      );
+
+      await NewsCacheManager().cacheForYouNews(response);
+
+      emit(state.copyWith(
+        forYouTeamNews: response.teamNews,
+        forYouPlayerNews: response.playerNews,
+        teamNames: response.teamNames,
+        playerNames: response.playerNames,
+        teamLogos: response.teamLogos,
+        playerImages: response.playerImages,
+        forYouNewsStatus: NewsRequest.requestSuccess,
+        forYouNewsRefreshing: false,
+        counter: 0,
+      ));
+    } catch (e) {
+      final cachedData = await NewsCacheManager().getForYouNewsCache();
+
+      if (cachedData != null) {
+        emit(state.copyWith(
+          forYouTeamNews: cachedData.teamNews,
+          forYouPlayerNews: cachedData.playerNews,
+          teamNames: cachedData.teamNames,
+          playerNames: cachedData.playerNames,
+          teamLogos: cachedData.teamLogos,
+          playerImages: cachedData.playerImages,
+          forYouNewsStatus: NewsRequest.requestSuccess,
+          forYouNewsRefreshing: false,
+        ));
+      } else {
+        emit(state.copyWith(
+          forYouNewsStatus: NewsRequest.requestFailure,
+          forYouNewsRefreshing: false,
+          forYouTeamNews: state.forYouTeamNews,
+          forYouPlayerNews: state.forYouPlayerNews,
+          teamNames: state.teamNames,
+          playerNames: state.playerNames,
+          teamLogos: state.teamLogos,
+          playerImages: state.playerImages,
+        ));
+      }
+    }
+  }
+
+  // ===================== LEAGUE NEWS =====================
   Future<void> _handleLeagueNewsRequested(
       LeagueNewsRequested event, Emitter<NewsState> emit) async {
     try {
       emit(state.copyWith(
         leagueNewsStatus: NewsRequest.requestInProgress,
+        leaguesCurrentPage: 0,
+        isLastPage: false,
+        isLeaguesNextPageLoading: false,
       ));
 
       final response = await api.getLeagueNews(
-          lang: event.language,
-          page: state.leaguesCurrentPage,
-          leagueId: event.leagueId);
-      await NewsCacheManager().cacheLeagueNews(response, event.leagueId);
+        lang: event.language,
+        page: 0,
+        leagueName: event.leagueName,
+      );
+
+      await NewsCacheManager().cacheLeagueNews(response, event.leagueName);
+
       emit(state.copyWith(
         leagueNews: response,
         leagueNewsStatus: NewsRequest.requestSuccess,
+        leaguesCurrentPage: 0,
       ));
     } catch (e) {
       emit(state.copyWith(
@@ -414,16 +493,15 @@ class NewsBloc extends Bloc<NewsEvent, NewsState> {
 
   Future<void> _handleLeaguesLoadNextPage(
       LeagueNewsNextPageRequested event, Emitter<NewsState> emit) async {
-    if (state.isLeaguesNextPageLoading) {
-      return;
-    }
+    if (state.isLeaguesNextPageLoading) return;
 
     emit(state.copyWith(isLeaguesNextPageLoading: true));
     try {
       final nextPage = await api.getLeagueNews(
           page: state.leaguesCurrentPage + 1,
           lang: event.language,
-          leagueId: event.leagueId);
+          leagueName: event.leagueName);
+
       if (nextPage.isEmpty) {
         emit(state.copyWith(isLeaguesNextPageLoading: false, isLastPage: true));
         return;
@@ -440,6 +518,111 @@ class NewsBloc extends Bloc<NewsEvent, NewsState> {
     }
   }
 
+  // ===================== TEAM NEWS =====================
+  Future<void> _handleTeamNewsRequested(
+      TeamNewsRequested event, Emitter<NewsState> emit) async {
+    try {
+      emit(state.copyWith(teamNewsStatus: NewsRequest.requestInProgress));
+
+      final response = await api.getTeamNews(
+        lang: event.language,
+        page: state.teamCurrentPage,
+        teamName: event.teamName,
+      );
+
+      emit(state.copyWith(
+        teamNews: response,
+        teamNewsStatus: NewsRequest.requestSuccess,
+        teamCurrentPage: state.teamCurrentPage + 1,
+      ));
+    } catch (e) {
+      emit(state.copyWith(teamNewsStatus: NewsRequest.requestFailure));
+    }
+  }
+
+  Future<void> _handleTeamNewsNextPageRequested(
+      TeamNewsNextPageRequested event, Emitter<NewsState> emit) async {
+    if (state.isTeamNextPageLoading) return;
+
+    emit(state.copyWith(isTeamNextPageLoading: true));
+    try {
+      final nextPage = await api.getTeamNews(
+        lang: event.language,
+        page: state.teamCurrentPage,
+        teamName: event.teamName,
+      );
+
+      if (nextPage.isEmpty) {
+        emit(state.copyWith(
+          isTeamNextPageLoading: false,
+          isLastPage: true,
+        ));
+        return;
+      }
+
+      emit(state.copyWith(
+        teamNews: [...state.teamNews, ...nextPage],
+        isTeamNextPageLoading: false,
+        teamCurrentPage: state.teamCurrentPage + 1,
+      ));
+    } catch (e) {
+      emit(state.copyWith(isTeamNextPageLoading: false));
+    }
+  }
+
+  // ===================== PLAYER NEWS =====================
+  Future<void> _handlePlayerNewsRequested(
+      PlayerNewsRequested event, Emitter<NewsState> emit) async {
+    try {
+      emit(state.copyWith(playerNewsStatus: NewsRequest.requestInProgress));
+
+      final response = await api.getPlayerNews(
+        lang: event.language,
+        page: state.playerCurrentPage,
+        playerName: event.playerName,
+      );
+
+      emit(state.copyWith(
+        playerNews: response,
+        playerNewsStatus: NewsRequest.requestSuccess,
+        playerCurrentPage: state.playerCurrentPage + 1,
+      ));
+    } catch (e) {
+      emit(state.copyWith(playerNewsStatus: NewsRequest.requestFailure));
+    }
+  }
+
+  Future<void> _handlePlayerNewsNextPageRequested(
+      PlayerNewsNextPageRequested event, Emitter<NewsState> emit) async {
+    if (state.isPlayerNextPageLoading) return;
+
+    emit(state.copyWith(isPlayerNextPageLoading: true));
+    try {
+      final nextPage = await api.getPlayerNews(
+        lang: event.language,
+        page: state.playerCurrentPage,
+        playerName: event.playerName,
+      );
+
+      if (nextPage.isEmpty) {
+        emit(state.copyWith(
+          isPlayerNextPageLoading: false,
+          isLastPage: true,
+        ));
+        return;
+      }
+
+      emit(state.copyWith(
+        playerNews: [...state.playerNews, ...nextPage],
+        isPlayerNextPageLoading: false,
+        playerCurrentPage: state.playerCurrentPage + 1,
+      ));
+    } catch (e) {
+      emit(state.copyWith(isPlayerNextPageLoading: false));
+    }
+  }
+
+  // ===================== TRENDING NEWS =====================
   Future<void> _handleTrendingNewsRequested(
       TrendingNewsRequested event, Emitter<NewsState> emit) async {
     try {
@@ -465,9 +648,7 @@ class NewsBloc extends Bloc<NewsEvent, NewsState> {
 
   Future<void> _handleLoadTrendingNextPage(
       TrendingNewsLoadNextPage event, Emitter<NewsState> emit) async {
-    if (state.isTrendingNextPageLoading || state.isTrendingLastPage) {
-      return;
-    }
+    if (state.isTrendingNextPageLoading || state.isTrendingLastPage) return;
 
     try {
       emit(state.copyWith(isTrendingNextPageLoading: true));
@@ -495,7 +676,6 @@ class NewsBloc extends Bloc<NewsEvent, NewsState> {
     try {
       final response = await api.getTrendingNews(lang: event.language, page: 0);
 
-      // Cache trending news
       await NewsCacheManager().cacheTrendingNews(response);
 
       emit(state.copyWith(
@@ -504,7 +684,6 @@ class NewsBloc extends Bloc<NewsEvent, NewsState> {
           trendingNewsRefreshing: false,
           trendingCurrentPage: 1));
     } catch (e) {
-      // Fallback to cached trending news
       final cachedTrendingNews =
           await NewsCacheManager().getTrendingNewsCache();
 
@@ -517,74 +696,6 @@ class NewsBloc extends Bloc<NewsEvent, NewsState> {
         emit(state.copyWith(
             trendingNewsStatus: NewsRequest.requestFailure,
             trendingNewsRefreshing: false));
-      }
-    }
-  }
-
-  Future<void> _handleForYouRefreshRequested(
-    ForYouRefreshRequested event,
-    Emitter<NewsState> emit,
-  ) async {
-    try {
-      // Keep existing data while refreshing
-      emit(state.copyWith(
-        forYouNewsStatus: NewsRequest.requestInProgress,
-        forYouNewsRefreshing: true,
-        forYouTeamNews: state.forYouTeamNews,
-        forYouPlayerNews: state.forYouPlayerNews,
-        teamNames: state.teamNames,
-        playerNames: state.playerNames,
-        teamLogos: state.teamLogos,
-        playerImages: state.playerImages,
-      ));
-
-      final response = await api.getForYouNews(
-        lang: event.language,
-        page: 0,
-      );
-
-      // Cache successful response
-      await NewsCacheManager().cacheForYouNews(response);
-
-      emit(state.copyWith(
-        forYouTeamNews: response.teamNews,
-        forYouPlayerNews: response.playerNews,
-        teamNames: response.teamNames,
-        playerNames: response.playerNames,
-        teamLogos: response.teamLogos,
-        playerImages: response.playerImages,
-        forYouNewsStatus: NewsRequest.requestSuccess,
-        forYouNewsRefreshing: false,
-        counter: 0,
-      ));
-    } catch (e) {
-      // Try to get cached data
-      final cachedData = await NewsCacheManager().getForYouNewsCache();
-
-      if (cachedData != null) {
-        // Use cached data if available
-        emit(state.copyWith(
-          forYouTeamNews: cachedData.teamNews,
-          forYouPlayerNews: cachedData.playerNews,
-          teamNames: cachedData.teamNames,
-          playerNames: cachedData.playerNames,
-          teamLogos: cachedData.teamLogos,
-          playerImages: cachedData.playerImages,
-          forYouNewsStatus: NewsRequest.requestSuccess,
-          forYouNewsRefreshing: false,
-        ));
-      } else {
-        // Keep existing data on error if no cache
-        emit(state.copyWith(
-          forYouNewsStatus: NewsRequest.requestFailure,
-          forYouNewsRefreshing: false,
-          forYouTeamNews: state.forYouTeamNews,
-          forYouPlayerNews: state.forYouPlayerNews,
-          teamNames: state.teamNames,
-          playerNames: state.playerNames,
-          teamLogos: state.teamLogos,
-          playerImages: state.playerImages,
-        ));
       }
     }
   }

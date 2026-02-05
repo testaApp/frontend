@@ -96,7 +96,12 @@ class FormsView extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const FirstRowForForm(),
-                    GroupRow(idx: idx),
+                    GroupRow(
+                      idx: idx,
+                      name: listOfTables[idx].isNotEmpty
+                          ? listOfTables[idx].first.group
+                          : null,
+                    ),
                     Container(
                         child: RefreshIndicator(
                       onRefresh: () async {},

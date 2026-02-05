@@ -100,7 +100,12 @@ class FullView extends StatelessWidget {
                     SizedBox(
                       height: 15.h,
                     ),
-                    GroupRow(idx: idx),
+                    GroupRow(
+                      idx: idx,
+                      name: listOfTables[idx].isNotEmpty
+                          ? listOfTables[idx].first.group
+                          : null,
+                    ),
                     Container(
                         child: RefreshIndicator(
                       onRefresh: () async {},

@@ -541,7 +541,7 @@ class NewsCard extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          ' ${formatTimeForNews(news.time)}',
+                          ' ${formatTimeForNews(news.publishedDate ?? '')}',
                           style: TextUtils.setTextStyle(
                             fontSize: 11.sp,
                             color: Theme.of(context).colorScheme.onSurface,

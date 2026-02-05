@@ -1,12 +1,10 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:http/http.dart' as http;
 import 'package:shimmer/shimmer.dart';
 
 import '../../../../../components/timeFormatter.dart';
 import '../../../../../models/news.dart';
-import '../../../../../util/baseUrl.dart';
 import '../../../../constants/text_utils.dart';
 import '../news_detail.dart';
 
@@ -27,12 +25,13 @@ class HeadlineWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => NewsDetailPage(news: news),
-          ),
-        );
+       Navigator.push(
+  context,
+  MaterialPageRoute(
+    builder: (context) => NewsDetailPage(id: news.id),
+  ),
+);
+
       },
       child: Card(
         shape: RoundedRectangleBorder(
@@ -114,12 +113,11 @@ class HeadlineWidget extends StatelessWidget {
             Icon(Icons.access_time, size: 12.sp, color: Colors.white70),
             SizedBox(width: 4.w),
             Text(
-              formatTimeForNews(news.time),
+              formatTimeForNews(news.publishedDate ?? ''),
               style: TextUtils.setTextStyle(
                   fontSize: 10.sp, color: Colors.white70),
             ),
             SizedBox(width: 8.w),
-            // Replaced icon with source image
             if (news.sourceimage != null && news.sourceimage!.isNotEmpty)
               ClipRRect(
                 borderRadius: BorderRadius.circular(2.r),
@@ -159,15 +157,5 @@ class HeadlineWidget extends StatelessWidget {
         ),
       ],
     );
-  }
-}
-
-Future<int> pushDetails(String id) async {
-  final String url = BaseUrl().url;
-  try {
-    final response = await http.get(Uri.parse('$url/details/$id'));
-    return response.statusCode;
-  } catch (e) {
-    rethrow;
   }
 }

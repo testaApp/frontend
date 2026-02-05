@@ -262,33 +262,33 @@ class NewsCacheManager {
   }
 
   // League News Caching
-  Future<void> cacheLeagueNews(List<News> response, int leagueId) async {
+  Future<void> cacheLeagueNews(List<News> response, String leagueName) async {
     return _safeExecute<void>(() async {
       final box = await Hive.openBox<String>(_leagueNewsKey);
 
       final cacheEntry = {
         'version': CACHE_VERSION,
         'timestamp': DateTime.now().toIso8601String(),
-        'leagueId': leagueId.toString(),
+        'leagueName': leagueName,
         'data': response.map((e) => e.toJson()).toList()
       };
 
-      await box.put('league_news_$leagueId', jsonEncode(cacheEntry));
-      _log('Cached ${response.length} league news items for league $leagueId');
+      await box.put('league_news_$leagueName', jsonEncode(cacheEntry));
+      _log('Cached ${response.length} league news items for league $leagueName');
     });
   }
 
-  Future<List<News>?> getLeagueNewsCache(int leagueId) async {
+  Future<List<News>?> getLeagueNewsCache(String leagueName) async {
     return _safeExecute<List<News>>(() async {
       final box = await Hive.openBox<String>(_leagueNewsKey);
-      final cachedData = box.get('league_news_$leagueId');
+      final cachedData = box.get('league_news_$leagueName');
 
       if (cachedData == null) return null;
 
       final decodedCache = jsonDecode(cachedData);
 
       if (decodedCache['version'] != CACHE_VERSION ||
-          decodedCache['leagueId'] != leagueId.toString()) {
+          decodedCache['leagueName'] != leagueName) {
         await box.clear();
         return null;
       }

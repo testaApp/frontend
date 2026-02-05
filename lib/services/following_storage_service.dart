@@ -183,6 +183,11 @@ class FollowingStorageService {
     return List<String>.from(data);
   }
 
+  /// Get all followed podcast IDs
+  List<String> getFollowedPodcasts() {
+    return _getFollowedPodcasts();
+  }
+
   // ========== PENDING SYNC ==========
   
   /// Track operations that need to be synced to backend

@@ -29,16 +29,18 @@ class _EnadamtNewState extends State<EnadamtNew>
 
   Timer? _periodicTimer;
   bool _isPageActive = true;
+  late final ScrollController _scrollController;
 
   @override
   void initState() {
     super.initState();
+    _scrollController = ScrollController()..addListener(_onScroll);
     _loadInitialContent();
 
     // Add periodic refresh every 10 minutes
     _periodicTimer = Timer.periodic(const Duration(minutes: 10), (timer) {
       if (mounted && _isPageActive) {
-        _handleRefresh();
+        _handleSoftRefresh();
       }
     });
   }
@@ -52,13 +54,24 @@ class _EnadamtNewState extends State<EnadamtNew>
   @override
   void dispose() {
     _periodicTimer?.cancel();
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
     super.dispose();
   }
 
-  Future<void> _handleRefresh() async {
+  Future<void> _handleUserRefresh() async {
+    try {
+      context.read<PodcastsBloc>().add(PodcastsRefresh());
+      // Add a reasonable timeout
+      await Future.delayed(const Duration(seconds: 2));
+    } catch (e) {
+      print('Error during refresh: $e');
+    }
+  }
+
+  Future<void> _handleSoftRefresh() async {
     try {
       context.read<PodcastsBloc>().add(PodcastsRequested());
-      // Add a reasonable timeout
       await Future.delayed(const Duration(seconds: 2));
     } catch (e) {
       print('Error during refresh: $e');
@@ -70,11 +83,19 @@ class _EnadamtNewState extends State<EnadamtNew>
     context.read<PodcastsBloc>().add(PodcastsRequested());
   }
 
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    if (position.pixels >= position.maxScrollExtent - 200) {
+      context.read<PodcastsBloc>().add(PodcastsLoadMore());
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
     return RefreshIndicator(
-      onRefresh: _handleRefresh,
+      onRefresh: _handleUserRefresh,
       child: Container(
         color: Theme.of(context).colorScheme.surface,
         child: Column(
@@ -104,18 +125,35 @@ class _EnadamtNewState extends State<EnadamtNew>
                       if (!a.isLive && b.isLive) return 1;
                       return 0;
                     });
+                    final rowCount = (podcasts.length / 2).ceil();
+                    final showLoader = state.isLoadingMore;
                     return ListView.builder(
-                      itemCount: (podcasts.length / 2).ceil(),
+                      controller: _scrollController,
+                      itemCount: rowCount + (showLoader ? 1 : 0),
                       physics: const BouncingScrollPhysics(),
                       itemBuilder: (context, index) {
+                        if (showLoader && index == rowCount) {
+                          return Padding(
+                            padding: EdgeInsets.symmetric(vertical: 16.h),
+                            child: Center(
+                              child: SizedBox(
+                                height: 24.h,
+                                width: 24.h,
+                                child: const CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                            ),
+                          );
+                        }
                         return Padding(
                           padding: EdgeInsets.symmetric(
                               horizontal: 8.w, vertical: 8.h),
                           child: Row(
                             children: [
                               Expanded(
-                                  child:
-                                      _buildPodcastCard(podcasts[index * 2])),
+                                  child: _buildPodcastCard(
+                                      podcasts[index * 2])),
                               SizedBox(width: 8.w),
                               if (index * 2 + 1 < podcasts.length)
                                 Expanded(

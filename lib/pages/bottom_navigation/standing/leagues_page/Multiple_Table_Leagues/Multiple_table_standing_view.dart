@@ -12,6 +12,7 @@ import '../../../../../bloc/standings/bloc/content_bloc.dart';
 import '../../../../../bloc/standings/bloc/content_event.dart';
 import '../../../../../bloc/standings/bloc/content_state.dart';
 import '../../../../../localization/demo_localization.dart';
+import '../../../../../models/standings/standings.dart';
 import '../../../../constants/colors.dart';
 import '../../../../constants/constants.dart';
 import '../../../../constants/text_utils.dart';
@@ -46,7 +47,6 @@ class MultipleTableStandingView extends StatefulWidget {
 class _MultipleTableStandingViewState extends State<MultipleTableStandingView> {
   int selectedIndex = 0;
   late List<String> dpMenuItems;
-  List<String> standingData = ['overall', 'home', 'away'];
   bool isLoading = true;
   bool _isMounted = false;
 
@@ -55,36 +55,34 @@ class _MultipleTableStandingViewState extends State<MultipleTableStandingView> {
     super.initState();
     _isMounted = true;
     dpMenuItems = <String>[
-      DemoLocalizations.overall,
-      DemoLocalizations.home,
-      DemoLocalizations.away
+      DemoLocalizations.short,
+      DemoLocalizations.full,
+      DemoLocalizations.status
     ];
 
-    context
-        .read<AvailableSeasonsBloc>()
-        .add(AvailableSeasonsRequested(leagueId: leagueids[widget.current]));
+    final contentState = context.read<ContentBloc>().state;
+    final hasLeagueState =
+        contentState.currentLeagueId == leagueids[widget.current];
+    isLoading = !(hasLeagueState &&
+        (contentState.status == ContentStatus.requestSuccessed ||
+            contentState.status == ContentStatus.requestFailed));
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<AvailableSeasonsBloc>().stream.listen((state) {
-        if (_isMounted &&
-            state.status == AvailableSeasonsStatus.requestSuccessed) {
-          setState(() => isLoading = true);
-
-          context.read<ContentBloc>().add(
-                StandingRequested(
-                  leagueId: leagueids[widget.current],
-                  season: state.currentSeason,
-                ),
-              );
-        }
-      });
-
-      context.read<ContentBloc>().stream.listen((state) {
-        if (_isMounted && state.status == ContentStatus.requestSuccessed) {
-          setState(() => isLoading = false);
-        }
-      });
-    });
+    final seasonsState = context.read<AvailableSeasonsBloc>().state;
+    if (seasonsState.status == AvailableSeasonsStatus.requestSuccessed &&
+        seasonsState.leagueId == leagueids[widget.current] &&
+        seasonsState.currentSeason != null) {
+      final shouldFetch = contentState.currentLeagueId !=
+              leagueids[widget.current] ||
+          contentState.season != seasonsState.currentSeason;
+      if (shouldFetch) {
+        context.read<ContentBloc>().add(
+              StandingRequested(
+                leagueId: leagueids[widget.current],
+                season: seasonsState.currentSeason,
+              ),
+            );
+      }
+    }
   }
 
   @override
@@ -112,159 +110,168 @@ class _MultipleTableStandingViewState extends State<MultipleTableStandingView> {
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 3,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.start,
-        children: [
-          SizedBox(height: 8.h),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.start,
-            children: [
-              SizedBox(width: 10.w),
-              Container(
-                height: 25.h,
-                width: 230.w,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(25.r),
-                  color: Theme.of(context).cardColor,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Theme.of(context).colorScheme.shadow,
-                      spreadRadius: 0,
-                      blurRadius: 4,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: ExtendedTabBar(
-                    indicator: BoxDecoration(
-                      color: const Color.fromARGB(255, 177, 173, 173),
-                      borderRadius: Platform.isAndroid
-                          ? BorderRadius.circular(25.r)
-                          : BorderRadius.circular(0.r),
-                    ),
-                    labelColor: Colors.white,
-                    unselectedLabelColor:
-                        Theme.of(context).colorScheme.onSurface,
-                    labelPadding: EdgeInsets.symmetric(vertical: 2.5.h),
-                    labelStyle: TextUtils.setTextStyle(
-                        fontSize: 13.sp, fontWeight: FontWeight.w400),
-                    // ... existing code ...
-                    tabs: [
-                      SizedBox(
-                        width: 75.sp,
-                        height: 18.sp,
-                        child: Tab(
-                          child: Center(
-                            child: Padding(
-                              padding: EdgeInsets.only(
-                                  left: 8.w), // Add left padding
-                              child: Text(
-                                DemoLocalizations.short,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ),
-                        ),
+    return MultiBlocListener(
+      listeners: [
+        BlocListener<AvailableSeasonsBloc, AvailableSeasonsState>(
+          listenWhen: (previous, current) =>
+              current.status == AvailableSeasonsStatus.requestSuccessed &&
+              current.leagueId == leagueids[widget.current] &&
+              previous.requestId != current.requestId,
+          listener: (context, state) {
+            if (!_isMounted) return;
+            setState(() => isLoading = true);
+
+            context.read<ContentBloc>().add(
+                  StandingRequested(
+                    leagueId: leagueids[widget.current],
+                    season: state.currentSeason,
+                  ),
+                );
+          },
+        ),
+        BlocListener<ContentBloc, ContentState>(
+          listener: (context, state) {
+            if (!_isMounted) return;
+            if (state.status == ContentStatus.requestSuccessed ||
+                state.status == ContentStatus.requestFailed) {
+              setState(() => isLoading = false);
+            }
+          },
+        ),
+      ],
+      child: DefaultTabController(
+        length: 3,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.start,
+          children: [
+            SizedBox(height: 8.h),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.start,
+              children: [
+                SizedBox(width: 10.w),
+                Container(
+                  height: 25.h,
+                  width: 230.w,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(25.r),
+                    color: Theme.of(context).cardColor,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Theme.of(context).colorScheme.shadow,
+                        spreadRadius: 0,
+                        blurRadius: 4,
+                        offset: const Offset(0, 4),
                       ),
-                      SizedBox(
-                        width: 75.sp,
-                        height: 18.sp,
-                        child: Tab(
-                          child: Center(
-                            child: Padding(
-                              padding: EdgeInsets.only(
-                                  left: 8.w), // Add left padding
-                              child: Text(
-                                DemoLocalizations.full,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      SizedBox(
-                        width: 75.sp,
-                        height: 18.sp,
-                        child: Tab(
-                          child: Center(
-                            child: Padding(
-                              padding: EdgeInsets.only(
-                                  left: 8.w), // Add left padding
-                              child: Text(
-                                DemoLocalizations.status,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ),
-                        ),
-                      )
                     ],
-// ... existing code ...
+                  ),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: ExtendedTabBar(
+                      indicator: BoxDecoration(
+                        color: const Color.fromARGB(255, 177, 173, 173),
+                        borderRadius: Platform.isAndroid
+                            ? BorderRadius.circular(25.r)
+                            : BorderRadius.circular(0.r),
+                      ),
+                      labelColor: Colors.white,
+                      unselectedLabelColor:
+                          Theme.of(context).colorScheme.onSurface,
+                      labelPadding: EdgeInsets.symmetric(vertical: 2.5.h),
+                      labelStyle: TextUtils.setTextStyle(
+                          fontSize: 13.sp, fontWeight: FontWeight.w400),
+                      // ... existing code ...
+                      tabs: [
+                        SizedBox(
+                          width: 75.sp,
+                          height: 18.sp,
+                          child: Tab(
+                            child: Center(
+                              child: Padding(
+                                padding: EdgeInsets.only(
+                                    left: 8.w), // Add left padding
+                                child: Text(
+                                  DemoLocalizations.overall,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        SizedBox(
+                          width: 75.sp,
+                          height: 18.sp,
+                          child: Tab(
+                            child: Center(
+                              child: Padding(
+                                padding: EdgeInsets.only(
+                                    left: 8.w), // Add left padding
+                                child: Text(
+                                  DemoLocalizations.home,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        SizedBox(
+                          width: 75.sp,
+                          height: 18.sp,
+                          child: Tab(
+                            child: Center(
+                              child: Padding(
+                                padding: EdgeInsets.only(
+                                    left: 8.w), // Add left padding
+                                child: Text(
+                                  DemoLocalizations.away,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ),
+                          ),
+                        )
+                      ],
+                      // ... existing code ...
+                    ),
                   ),
                 ),
-              ),
-              const Expanded(child: SizedBox(height: 2)),
-              Padding(
-                padding: EdgeInsets.only(right: 10.w),
-                child: CustomDropdownButton(
-                  onChanged: onChanged,
-                  dpMenuItems: dpMenuItems,
-                  selectedIndex: selectedIndex,
+                const Expanded(child: SizedBox(height: 2)),
+                Padding(
+                  padding: EdgeInsets.only(right: 10.w),
+                  child: CustomDropdownButton(
+                    onChanged: onChanged,
+                    dpMenuItems: dpMenuItems,
+                    selectedIndex: selectedIndex,
+                  ),
                 ),
-              ),
-            ],
-          ),
-          SizedBox(height: 16.h),
-          BlocBuilder<ContentBloc, ContentState>(
-            builder: (context, state) {
-              if (state.status == ContentStatus.requestInProgress ||
-                  isLoading) {
-                return _buildLoadingView();
+              ],
+            ),
+            SizedBox(height: 16.h),
+            BlocBuilder<ContentBloc, ContentState>(
+              builder: (context, state) {
+                if (state.status == ContentStatus.requestInProgress ||
+                    isLoading) {
+                  return _buildLoadingView();
               } else if (state.status == ContentStatus.requestFailed) {
-                return _buildErrorView();
+                return _buildErrorView(message: state.errorMessage);
               } else if (state.status == ContentStatus.requestSuccessed) {
-                final listOfTables =
-                    state.nestedList[standingData[selectedIndex]] ??
-                        state.nestedList['overall']!;
+                final overallTables = _tablesForKey(state, 'overall');
+                final homeTables = _tablesForKey(state, 'home');
+                final awayTables = _tablesForKey(state, 'away');
                 return Expanded(
                     child: TabBarView(children: [
-                  ChampionsLeagueTablesView(
-                      europe: widget.europe,
-                      championsleague: widget.championsleague,
-                      nationsleague: widget.nationsleague,
-                      olympics_men: widget.olympics_men,
-                      europechampionship: widget.europechampionship,
-                      copa_america: widget.copa_america,
-                      listOfTables: listOfTables,
-                      onRefresh: _refresh),
-                  FullView(
-                      europe: widget.europe,
-                      championsleague: widget.championsleague,
-                      nationsleague: widget.nationsleague,
-                      olympics_men: widget.olympics_men,
-                      copa_america: widget.copa_america,
-                      listOfTables: listOfTables),
-                  FormsView(
-                    europe: widget.europe,
-                    championsleague: widget.championsleague,
-                    nationsleague: widget.nationsleague,
-                    olympics_men: widget.olympics_men,
-                    copa_america: widget.copa_america,
-                    listOfTables: listOfTables,
-                  ),
+                  _buildStandingView(overallTables),
+                  _buildStandingView(homeTables),
+                  _buildStandingView(awayTables),
                 ]));
               } else if (state.status == ContentStatus.unknown) {
                 return _buildLoadingView();
               } else {
                 return _buildLoadingView();
               }
-            },
-          ),
-        ],
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -285,7 +292,10 @@ class _MultipleTableStandingViewState extends State<MultipleTableStandingView> {
     );
   }
 
-  Widget _buildErrorView() {
+  Widget _buildErrorView({String? message}) {
+    final displayMessage = (message != null && message.isNotEmpty)
+        ? message
+        : DemoLocalizations.networkProblem;
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -298,7 +308,7 @@ class _MultipleTableStandingViewState extends State<MultipleTableStandingView> {
             width: 300.w,
           ),
           Text(
-            DemoLocalizations.networkProblem,
+            displayMessage,
             style: TextUtils.setTextStyle(
               color: Colorscontainer.greenColor,
               fontSize: 15.sp,
@@ -311,5 +321,56 @@ class _MultipleTableStandingViewState extends State<MultipleTableStandingView> {
         ],
       ),
     );
+  }
+
+  List<List<TableItem>> _tablesForKey(
+      ContentState state, String key) {
+    final tables = state.nestedList[key];
+    if (tables != null && tables.isNotEmpty) {
+      return tables;
+    }
+    return state.nestedList['overall'] ?? const [];
+  }
+
+  Widget _buildStandingView(List<List<TableItem>> listOfTables) {
+    switch (selectedIndex) {
+      case 0:
+        return ChampionsLeagueTablesView(
+            europe: widget.europe,
+            championsleague: widget.championsleague,
+            nationsleague: widget.nationsleague,
+            olympics_men: widget.olympics_men,
+            europechampionship: widget.europechampionship,
+            copa_america: widget.copa_america,
+            listOfTables: listOfTables,
+            onRefresh: _refresh);
+      case 1:
+        return FullView(
+            europe: widget.europe,
+            championsleague: widget.championsleague,
+            nationsleague: widget.nationsleague,
+            olympics_men: widget.olympics_men,
+            copa_america: widget.copa_america,
+            listOfTables: listOfTables);
+      case 2:
+        return FormsView(
+          europe: widget.europe,
+          championsleague: widget.championsleague,
+          nationsleague: widget.nationsleague,
+          olympics_men: widget.olympics_men,
+          copa_america: widget.copa_america,
+          listOfTables: listOfTables,
+        );
+      default:
+        return ChampionsLeagueTablesView(
+            europe: widget.europe,
+            championsleague: widget.championsleague,
+            nationsleague: widget.nationsleague,
+            olympics_men: widget.olympics_men,
+            europechampionship: widget.europechampionship,
+            copa_america: widget.copa_america,
+            listOfTables: listOfTables,
+            onRefresh: _refresh);
+    }
   }
 }
