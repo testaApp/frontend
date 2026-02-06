@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ui';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -9,6 +10,7 @@ import 'package:hive/hive.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:loading_animation_widget/loading_animation_widget.dart';
 
+import '../../../../localization/demo_localization.dart';
 import '../../../constants/colors.dart';
 import '../../../constants/text_utils.dart';
 import '/../components/timeFormatter.dart';
@@ -47,6 +49,8 @@ class _NewsDetailPageState extends State<NewsDetailPage>
   double _scrollOffset = 0;
   bool _hasError = false;
   String _errorMessage = '';
+  static const List<double> _fontScaleSteps = [0.95, 1.0, 1.1, 1.2];
+  int _fontScaleIndex = 1;
 
   @override
   void initState() {
@@ -177,6 +181,12 @@ class _NewsDetailPageState extends State<NewsDetailPage>
     return _news?.figCaption ?? '';
   }
 
+  void _cycleFontScale() {
+    setState(() {
+      _fontScaleIndex = (_fontScaleIndex + 1) % _fontScaleSteps.length;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -236,19 +246,47 @@ class _NewsDetailPageState extends State<NewsDetailPage>
       );
     }
 
+    final theme = Theme.of(context);
+    final bool isScrolled = _scrollOffset > 40;
+    final int imageCount = _news?.mainImages.length ?? 0;
+    final bool hasImages = imageCount > 0;
+    final String caption = _getLocalizedCaption().trim();
+    final String appBarTitle = _news?.summarizedTitle.toString() ?? '';
+    final double bodyFontSize = 17.0 * _fontScaleSteps[_fontScaleIndex];
+    const double contentMaxWidth = 720;
+
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surface,
+      backgroundColor: theme.colorScheme.background,
       extendBodyBehindAppBar: true,
       appBar: PreferredSize(
         preferredSize: Size.fromHeight(60.h),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          color: Colors.transparent,
+          decoration: BoxDecoration(
+            color: isScrolled
+                ? theme.colorScheme.surface.withOpacity(0.98)
+                : Colors.transparent,
+            boxShadow: isScrolled
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.06),
+                      blurRadius: 12,
+                      offset: const Offset(0, 6),
+                    ),
+                  ]
+                : [],
+            border: isScrolled
+                ? Border(
+                    bottom: BorderSide(
+                      color: theme.dividerColor.withOpacity(0.15),
+                    ),
+                  )
+                : null,
+          ),
           child: SafeArea(
             child: Padding(
               padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 6.h),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   _buildIconButton(
                     Icons.arrow_back,
@@ -259,20 +297,56 @@ class _NewsDetailPageState extends State<NewsDetailPage>
                         context.go('/home');
                       }
                     },
+                    isScrolled: isScrolled,
                   ),
+                  SizedBox(width: 10.w),
+                  Expanded(
+                    child: IgnorePointer(
+                      child: AnimatedOpacity(
+                        opacity: isScrolled ? 1 : 0,
+                        duration: const Duration(milliseconds: 200),
+                        child: Text(
+                          appBarTitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: TextUtils.setTextStyle(
+                            fontSize: 14.sp,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: -0.1,
+                            color: theme.textTheme.titleMedium?.color,
+                            themeData: theme,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 10.w),
                   Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
+                      _buildIconButton(
+                        Icons.text_fields,
+                        _cycleFontScale,
+                        color: _fontScaleIndex == 1
+                            ? null
+                            : Colorscontainer.greenColor,
+                        isScrolled: isScrolled,
+                      ),
+                      SizedBox(width: 12.w),
                       _buildIconButton(
                         isBookmarked ? Icons.bookmark : Icons.bookmark_border,
                         _toggleBookmark,
-                        color: isBookmarked ? Colors.yellow : null,
+                        color: isBookmarked ? Colorscontainer.greenColor : null,
+                        isScrolled: isScrolled,
                       ),
                       SizedBox(width: 12.w),
                       _buildIconButton(
                         Icons.share_outlined,
                         () => Share.share(
-                          '${_news?.summarizedTitle} \n\nRead more at: https://testa.et/news/${_news?.id}',
+                          '${_news?.summarizedTitle} \n\n${DemoLocalizations.Read_more_at}: https://testa.et/news/${_news?.id} ${localLanguageNotifier.value != 'en' ? '?lang=${localLanguageNotifier.value}' : ''}',
                         ),
+                        isScrolled: isScrolled,
                       ),
                     ],
                   ),
@@ -292,90 +366,138 @@ class _NewsDetailPageState extends State<NewsDetailPage>
                 child: Column(
                   children: [
                     SizedBox(
-                      height: 250.h,
+                      height: 280.h,
                       width: double.infinity,
                       child: Stack(
+                        fit: StackFit.expand,
                         children: [
-                          PageView.builder(
-                            scrollDirection: Axis.horizontal,
-                            itemCount: _news?.mainImages.length ?? 0,
-                            onPageChanged: (index) {
-                              setState(() {
-                                _currentPage = index;
-                              });
-                            },
-                            itemBuilder: (context, index) {
-                              final image = _news?.mainImages[index];
-                              return GestureDetector(
-                                onLongPress: () {
-                                  showDialog(
-                                    context: context,
-                                    builder: (context) {
-                                      return AlertDialog(
-                                        title: const Text('Save Image'),
-                                        content: const Text(
-                                            'Do you want to save this image?'),
-                                        actions: [
-                                          TextButton(
-                                            onPressed: () =>
-                                                Navigator.pop(context),
-                                            child: const Text('Cancel'),
-                                          ),
-                                          TextButton(
-                                            onPressed: () {
-                                              Navigator.pop(context);
-                                              _saveImage(_news!
-                                                  .mainImages[index].url);
-                                            },
-                                            child: const Text('Save'),
-                                          ),
-                                        ],
-                                      );
-                                    },
-                                  );
-                                },
-                                child: CachedNetworkImage(
-                                  imageUrl: image!.url,
-                                  width: MediaQuery.of(context).size.width,
-                                  height: 250.h,
-                                  fit: BoxFit.cover,
-                                  errorWidget: (context, url, error) =>
-                                      Image.asset('assets/testa_testa.png'),
+                          if (hasImages)
+                            PageView.builder(
+                              scrollDirection: Axis.horizontal,
+                              itemCount: imageCount,
+                              onPageChanged: (index) {
+                                setState(() {
+                                  _currentPage = index;
+                                });
+                              },
+                              itemBuilder: (context, index) {
+                                final image = _news?.mainImages[index];
+                                return GestureDetector(
+                                  onLongPress: () {
+                                    showDialog(
+                                      context: context,
+                                      builder: (context) {
+                                        return AlertDialog(
+                                          title: const Text('Save Image'),
+                                          content: const Text(
+                                              'Do you want to save this image?'),
+                                          actions: [
+                                            TextButton(
+                                              onPressed: () =>
+                                                  Navigator.pop(context),
+                                              child: const Text('Cancel'),
+                                            ),
+                                            TextButton(
+                                              onPressed: () {
+                                                Navigator.pop(context);
+                                                _saveImage(_news!
+                                                    .mainImages[index].url);
+                                              },
+                                              child: const Text('Save'),
+                                            ),
+                                          ],
+                                        );
+                                      },
+                                    );
+                                  },
+                                  child: CachedNetworkImage(
+                                    imageUrl: image!.url,
+                                    width: MediaQuery.of(context).size.width,
+                                    height: 280.h,
+                                    fit: BoxFit.cover,
+                                    errorWidget: (context, url, error) =>
+                                        Image.asset('assets/testa_testa.png'),
+                                  ),
+                                );
+                              },
+                            )
+                          else
+                            Image.asset(
+                              'assets/testa_testa.png',
+                              fit: BoxFit.cover,
+                            ),
+                          IgnorePointer(
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    Colors.black.withOpacity(0.35),
+                                    Colors.transparent,
+                                  ],
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.center,
                                 ),
-                              );
-                            },
+                              ),
+                            ),
                           ),
-                          if (_news?.figCaption?.isNotEmpty ?? false)
-                            Positioned(
-                              bottom: 2.h,
-                              left: 12.w,
-                              right: 12.w,
-                              child: Container(
-                                padding: EdgeInsets.symmetric(
-                                    horizontal: 16.w, vertical: 6.h),
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withOpacity(0.5),
-                                  borderRadius: BorderRadius.circular(12),
+                          IgnorePointer(
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    Colors.transparent,
+                                    Colors.black.withOpacity(0.45),
+                                  ],
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
                                 ),
-                                child: SingleChildScrollView(
-                                  scrollDirection: Axis.horizontal,
-                                  child: Row(
-                                    children: [
-                                      const Icon(
-                                        Icons.photo_camera,
-                                        size: 14,
-                                        color: Colors.white70,
+                              ),
+                            ),
+                          ),
+                          if (caption.isNotEmpty)
+                            Positioned(
+                              bottom: 12.h,
+                              left: 16.w,
+                              right: 16.w,
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: BackdropFilter(
+                                  filter:
+                                      ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                                  child: Container(
+                                    padding: EdgeInsets.symmetric(
+                                        horizontal: 12.w, vertical: 8.h),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withOpacity(0.35),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: Colors.white.withOpacity(0.12),
                                       ),
-                                      SizedBox(width: 6.w),
-                                      Text(
-                                        _getLocalizedCaption(),
-                                        style: TextUtils.setTextStyle(
-                                          fontSize: 13.sp,
-                                          color: Colors.white,
-                                          height: 1.2,
+                                    ),
+                                    child: Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Icon(
+                                          Icons.photo_camera,
+                                          size: 14.sp,
+                                          color: Colors.white70,
                                         ),
-                                      ),
-                                    ],
+                                        SizedBox(width: 8.w),
+                                        Expanded(
+                                          child: Text(
+                                            caption,
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextUtils.setTextStyle(
+                                              fontSize: 12.5.sp,
+                                              color: Colors.white,
+                                              height: 1.25,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
                               ),
@@ -383,78 +505,83 @@ class _NewsDetailPageState extends State<NewsDetailPage>
                         ],
                       ),
                     ),
-                    if ((_news?.mainImages.length ?? 0) > 1)
+                    if (imageCount > 1)
                       Padding(
                         padding: EdgeInsets.only(top: 8.h),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: List.generate(
-                            _news?.mainImages.length ?? 0,
+                            imageCount,
                             (index) => AnimatedContainer(
                               duration: const Duration(milliseconds: 300),
-                              width: _currentPage == index ? 10.w : 6.w,
-                              height: _currentPage == index ? 10.w : 6.w,
+                              width: _currentPage == index ? 12.w : 6.w,
+                              height: 6.w,
                               margin: EdgeInsets.symmetric(horizontal: 4.w),
                               decoration: BoxDecoration(
                                 color: _currentPage == index
                                     ? Colorscontainer.greenColor
                                     : Colors.grey.withOpacity(0.5),
-                                shape: BoxShape.circle,
+                                borderRadius: BorderRadius.circular(10),
                               ),
                             ),
                           ),
                         ),
                       ),
                     Padding(
-                      padding: EdgeInsets.symmetric(
-                          horizontal: 20.w, vertical: 20.h),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _news!.summarizedTitle.toString(),
-                            style: TextUtils.setTextStyle(
-                              fontSize: 20.sp,
-                              fontWeight: FontWeight.bold,
-                              color: Theme.of(context)
-                                  .textTheme
-                                  .titleLarge
-                                  ?.color,
-                              themeData: Theme.of(context),
-                            ),
-                          ),
-                          SizedBox(height: 10.h),
-                          Container(
-                            padding: EdgeInsets.all(12.w),
-                            decoration: BoxDecoration(
-                              color: Theme.of(context).cardColor,
-                              borderRadius: BorderRadius.circular(12),
-                              boxShadow: const [
-                                BoxShadow(
-                                  color: Colors.black12,
-                                  blurRadius: 5,
-                                  offset: Offset(0, 2),
+                      padding: EdgeInsets.fromLTRB(20.w, 22.h, 20.w, 110.h),
+                      child: Align(
+                        alignment: Alignment.topCenter,
+                        child: ConstrainedBox(
+                          constraints:
+                              const BoxConstraints(maxWidth: contentMaxWidth),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _news!.summarizedTitle.toString(),
+                                style: TextUtils.setTextStyle(
+                                  fontSize: 24.sp,
+                                  fontWeight: FontWeight.w700,
+                                  height: 1.2,
+                                  letterSpacing: -0.2,
+                                  color: theme.textTheme.titleLarge?.color,
+                                  themeData: theme,
                                 ),
-                              ],
-                            ),
-                            child: _buildSourceInfo(),
+                              ),
+                              SizedBox(height: 14.h),
+                              Container(
+                                padding:
+                                    EdgeInsets.symmetric(vertical: 12.h),
+                                decoration: BoxDecoration(
+                                  border: Border(
+                                    top: BorderSide(
+                                      color:
+                                          theme.dividerColor.withOpacity(0.2),
+                                    ),
+                                    bottom: BorderSide(
+                                      color:
+                                          theme.dividerColor.withOpacity(0.2),
+                                    ),
+                                  ),
+                                ),
+                                child: _buildSourceInfo(),
+                              ),
+                              SizedBox(height: 18.h),
+                              Text(
+                                _news!.summarized.toString(),
+                                textAlign: TextAlign.start,
+                                style: TextUtils.setTextStyle(
+                                  fontSize: bodyFontSize.sp,
+                                  height: 1.75,
+                                  color: theme.textTheme.bodyLarge?.color
+                                          ?.withOpacity(0.9) ??
+                                      Colors.black87,
+                                  themeData: theme,
+                                ),
+                              ),
+                            ],
                           ),
-                          SizedBox(height: 20.h),
-                          Text(
-                            _news!.summarized.toString(),
-                            textAlign: TextAlign.justify,
-                            style: TextUtils.setTextStyle(
-                              fontSize: 16.sp,
-                              height: 1.6,
-                              color: Theme.of(context)
-                                  .textTheme
-                                  .bodyLarge
-                                  ?.color,
-                              themeData: Theme.of(context),
-                            ),
-                          ),
-                          SizedBox(height: 100.h),
-                        ],
+                        ),
                       ),
                     ),
                   ],
@@ -475,7 +602,19 @@ class _NewsDetailPageState extends State<NewsDetailPage>
     );
   }
 
-  Widget _buildIconButton(IconData icon, VoidCallback onTap, {Color? color}) {
+  Widget _buildIconButton(
+    IconData icon,
+    VoidCallback onTap, {
+    Color? color,
+    bool isScrolled = false,
+  }) {
+    final theme = Theme.of(context);
+    final Color backgroundColor = isScrolled
+        ? theme.colorScheme.surface.withOpacity(0.9)
+        : Colors.black.withOpacity(0.35);
+    final Color iconColor = color ??
+        (isScrolled ? theme.colorScheme.onSurface : Colors.white);
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -484,20 +623,27 @@ class _NewsDetailPageState extends State<NewsDetailPage>
         child: Container(
           padding: EdgeInsets.all(6.w),
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.35),
+            color: backgroundColor,
             shape: BoxShape.circle,
+            border: isScrolled
+                ? Border.all(
+                    color: theme.dividerColor.withOpacity(0.2),
+                  )
+                : null,
           ),
           child: Icon(
             icon,
-            color: color ?? Colors.white,
+            color: iconColor,
             size: 18.sp,
-            shadows: [
-              Shadow(
-                blurRadius: 4,
-                color: Colors.black.withOpacity(0.7),
-                offset: const Offset(0, 1),
-              ),
-            ],
+            shadows: isScrolled
+                ? null
+                : [
+                    Shadow(
+                      blurRadius: 4,
+                      color: Colors.black.withOpacity(0.7),
+                      offset: const Offset(0, 1),
+                    ),
+                  ],
           ),
         ),
       ),
@@ -505,22 +651,46 @@ class _NewsDetailPageState extends State<NewsDetailPage>
   }
 
   Widget _buildSourceInfo() {
+    final theme = Theme.of(context);
+    final String author = (_news?.author ?? '').trim();
+    final String time = formatTimeForNews(_news!.publishedDate ?? '');
+    final List<String> metaParts = [
+      if (author.isNotEmpty) author,
+      if (time.isNotEmpty) time,
+    ];
+    final String metaText = metaParts.join(' \u2022 ');
+    final Color metaColor =
+        theme.textTheme.bodySmall?.color?.withOpacity(0.75) ?? Colors.grey;
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         SizedBox(
-          width: 40.w,
-          height: 24.h,
-          child: _news?.sourceimage != null && _news!.sourceimage!.isNotEmpty
-              ? CachedNetworkImage(
-                  imageUrl: _news!.sourceimage!,
-                  fit: BoxFit.contain,
-                  placeholder: (context, url) =>
-                      const CircularProgressIndicator(strokeWidth: 1),
-                  errorWidget: (context, url, error) =>
-                      const Icon(Icons.business, size: 20, color: Colors.grey),
-                )
-              : Image.asset('assets/testa_logo.png', fit: BoxFit.contain),
+          width: 36.w,
+          height: 36.w,
+          child: Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: theme.colorScheme.surfaceVariant.withOpacity(0.6),
+            ),
+            child: ClipOval(
+              child:
+                  _news?.sourceimage != null && _news!.sourceimage!.isNotEmpty
+                      ? CachedNetworkImage(
+                          imageUrl: _news!.sourceimage!,
+                          fit: BoxFit.cover,
+                          placeholder: (context, url) =>
+                              const CircularProgressIndicator(strokeWidth: 1),
+                          errorWidget: (context, url, error) => const Icon(
+                            Icons.business,
+                            size: 18,
+                            color: Colors.grey,
+                          ),
+                        )
+                      : Image.asset('assets/testa_logo.png',
+                          fit: BoxFit.cover),
+            ),
+          ),
         ),
         SizedBox(width: 12.w),
         Expanded(
@@ -532,41 +702,22 @@ class _NewsDetailPageState extends State<NewsDetailPage>
                 style: TextUtils.setTextStyle(
                   fontSize: 14.sp,
                   fontWeight: FontWeight.w600,
-                  themeData: Theme.of(context),
+                  color: theme.textTheme.titleMedium?.color,
+                  themeData: theme,
                 ),
               ),
-              SizedBox(height: 4.h),
-              Row(
-                children: [
-                  Icon(Icons.person, size: 12.sp, color: Colors.grey),
-                  SizedBox(width: 4.w),
-                  Expanded(
-                    child: Text(
-                      _news?.author ?? '',
-                      style: TextUtils.setTextStyle(
-                        fontSize: 12.sp,
-                        color: Colors.grey,
-                        themeData: Theme.of(context),
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
+              if (metaText.isNotEmpty) ...[
+                SizedBox(height: 4.h),
+                Text(
+                  metaText,
+                  style: TextUtils.setTextStyle(
+                    fontSize: 12.sp,
+                    color: metaColor,
+                    themeData: theme,
                   ),
-                  SizedBox(width: 8.w),
-                  Icon(Icons.access_time, size: 12.sp, color: Colors.grey),
-                  SizedBox(width: 4.w),
-                  Expanded(
-                    child: Text(
-                      formatTimeForNews(_news!.publishedDate ?? ''),
-                      style: TextUtils.setTextStyle(
-                        fontSize: 12.sp,
-                        color: Colors.grey,
-                        themeData: Theme.of(context),
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
             ],
           ),
         ),
@@ -614,7 +765,7 @@ class _NewsDetailPageState extends State<NewsDetailPage>
                 : Icon(
                     isPlaying ? Icons.pause : Icons.play_arrow_rounded,
                     color: Colors.white,
-                    size: 20.sp,
+                    size: 25.sp,
                   ),
           ),
         ),

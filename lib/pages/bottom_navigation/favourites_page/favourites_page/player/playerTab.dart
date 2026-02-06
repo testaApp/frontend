@@ -199,6 +199,7 @@ class _PlayerTabState extends State<PlayerTab>
                     _buildSearchBar(),
                     Expanded(
                       child: GridView.builder(
+                        key: const PageStorageKey('players_grid'),
                         padding: EdgeInsets.fromLTRB(18.w, 0, 18.w, 120.h),
                         itemCount: favPlayers.length,
                         physics: const AlwaysScrollableScrollPhysics(),
@@ -209,8 +210,13 @@ class _PlayerTabState extends State<PlayerTab>
                           crossAxisSpacing: 16,
                           childAspectRatio: 0.90,
                         ),
-                        itemBuilder: (context, index) =>
-                            _buildPlayerCard(favPlayers[index]),
+                        itemBuilder: (context, index) {
+                          final p = favPlayers[index];
+                          return KeyedSubtree(
+                            key: ValueKey('player_${p.id}'),
+                            child: _buildPlayerCard(p),
+                          );
+                        },
                       ),
                     ),
                   ],

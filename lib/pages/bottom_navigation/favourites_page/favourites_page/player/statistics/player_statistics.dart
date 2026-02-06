@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -220,16 +220,12 @@ class _PlayerProfileStatisticsState extends State<PlayerProfileStatistics> {
     ]);
   }
 
-  // Simple normalized value helper (0.0 to 1.0)
   double _norm(double value, double maxValue) {
     if (maxValue <= 0) return 0.0;
     return (value / maxValue).clamp(0.0, 1.0);
   }
 
-  // Special case: total saves can go up to 2.0 for visual scaling
   double _normSaves(double value) => (value / totalSaves).clamp(0.0, 2.0);
-
-  // Special case: duels total uses fixed 250 as max
   double _normDuelsTotal(double value) => (value / 250).clamp(0.0, 1.0);
 
   Color _getAdvancedColor(String? ratingString) {
@@ -250,511 +246,580 @@ class _PlayerProfileStatisticsState extends State<PlayerProfileStatistics> {
   @override
   Widget build(BuildContext context) {
     final stat = widget.playerStatistics[selectedIndex];
+    final scheme = Theme.of(context).colorScheme;
+
+    final summaryMetrics = [
+      (_MetricBadgeData(label: DemoLocalizations.played, value: stat.gameAppearances?.toString() ?? '-', icon: Icons.sports_soccer)),
+      (_MetricBadgeData(label: DemoLocalizations.minutesPlayed, value: stat.gameMinutes?.toString() ?? '-', icon: Icons.schedule)),
+      (_MetricBadgeData(label: DemoLocalizations.goal, value: stat.totalGoals?.toString() ?? '-', icon: Icons.sports_score)),
+      (_MetricBadgeData(label: DemoLocalizations.topAssist, value: stat.assists?.toString() ?? '-', icon: Icons.handshake_outlined)),
+      (_MetricBadgeData(label: DemoLocalizations.totalPass, value: stat.passesAccuracy != null ? '${stat.passesAccuracy}%' : '-', icon: Icons.swap_horiz_rounded)),
+      (_MetricBadgeData(label: DemoLocalizations.shots, value: stat.totalShot?.toString() ?? '-', icon: Icons.bolt_outlined)),
+    ];
 
     return SingleChildScrollView(
-      scrollDirection: Axis.vertical,
-      child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: 8.0.w),
-        child: Column(
-          children: [
-            SizedBox(height: 10.h),
-            Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(10.0),
-                color: Theme.of(context).colorScheme.surface,
-                boxShadow: [
-                  BoxShadow(
-                    color: Theme.of(context).colorScheme.shadow,
-                    blurRadius: 4,
-                    offset: const Offset(0, 4),
-                  ),
+      padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 40.h),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18.r),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  scheme.surface.withOpacity(0.95),
+                  scheme.surfaceVariant.withOpacity(0.85),
                 ],
               ),
-              child: PlayerstatDropdown(
-                playerStats: widget.playerStatistics,
-                index: selectedIndex,
-                setIndex: setIndex,
-              ),
+              border: Border.all(color: scheme.outlineVariant.withOpacity(0.25)),
+              boxShadow: [
+                BoxShadow(
+                  color: scheme.shadow.withOpacity(0.1),
+                  blurRadius: 18,
+                  offset: const Offset(0, 10),
+                ),
+              ],
             ),
-            SizedBox(height: 10.h),
-            Container(
-              width: 360.w,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12.r),
-                color: Theme.of(context).colorScheme.surface,
-                boxShadow: [
-                  BoxShadow(
-                    color:
-                        Theme.of(context).colorScheme.shadow.withOpacity(0.15),
-                    blurRadius: 12,
-                    offset: const Offset(0, 6),
-                  ),
+            padding: EdgeInsets.all(14.w),
+            child: PlayerstatDropdown(
+              playerStats: widget.playerStatistics,
+              index: selectedIndex,
+              setIndex: setIndex,
+            ),
+          ),
+          SizedBox(height: 14.h),
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20.r),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  scheme.primary.withOpacity(0.08),
+                  scheme.tertiary.withOpacity(0.10),
+                  scheme.surface,
                 ],
               ),
-              child: Padding(
-                padding: EdgeInsets.symmetric(vertical: 20.h, horizontal: 18.w),
-                child: Column(
+              border: Border.all(color: scheme.outlineVariant.withOpacity(0.3)),
+              boxShadow: [
+                BoxShadow(
+                  color: scheme.shadow.withOpacity(0.12),
+                  blurRadius: 22,
+                  offset: const Offset(0, 12),
+                ),
+              ],
+            ),
+            padding: EdgeInsets.all(16.w),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    // Top row: Goals, Assists, Rank
-                    Row(
-                      children: [
-                        Expanded(
-                            child: _buildStatItem(
-                          label: DemoLocalizations.totalGoalsScored,
-                          value: stat.gameLineups.toString(),
-                        )),
-                        Expanded(
-                            child: _buildStatItem(
-                          label: DemoLocalizations.totalPass,
-                          value: stat.gameLineups.toString(),
-                        )), // Adjust to your actual localization
-                        Expanded(
-                          child:
-                              _buildRankItem(value: stat.gameRating.toString()),
-                        ),
-                      ],
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            DemoLocalizations.seasonPerformance,
+                            style: TextUtils.setTextStyle(
+                              fontSize: 13.sp,
+                              fontWeight: FontWeight.w700,
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ),
+                          SizedBox(height: 4.h),
+                          Text(
+                            DemoLocalizations.profile,
+                            style: TextUtils.setTextStyle(
+                              fontSize: 18.sp,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-
-                    SizedBox(height: 24.h),
-
-                    // Bottom row: Appearances, Minutes Played, Lineups
-                    Row(
-                      children: [
-                        Expanded(
-                            child: _buildStatItem(
-                          label: DemoLocalizations.played,
-                          value: stat.gameLineups.toString(),
-                        )),
-                        Expanded(
-                            child: _buildStatItem(
-                                label: DemoLocalizations.minutesPlayed,
-                                value: stat.gameMinutes.toString())),
-                        Expanded(
-                            child: _buildStatItem(
-                                label: DemoLocalizations.lineUp,
-                                value: stat.gameLineups.toString())),
-                      ],
+                    _RatingDial(
+                      value: double.tryParse(stat.gameRating ?? '') ?? 0,
+                      color: _getAdvancedColor(stat.gameRating),
                     ),
                   ],
                 ),
-              ),
-            ),
-            SizedBox(height: 10.h),
-            Padding(
-              padding: const EdgeInsets.only(left: 10, top: 8, bottom: 4),
-              child: Align(
-                alignment: Alignment.topLeft,
-                child: Text(
-                  DemoLocalizations.seasonPerformance,
-                  style: TextUtils.setTextStyle(
-                      color: Theme.of(context).colorScheme.onSurface),
+                SizedBox(height: 14.h),
+                Wrap(
+                  spacing: 12.w,
+                  runSpacing: 10.h,
+                  children: summaryMetrics
+                      .map((m) => _MetricBadge(data: m))
+                      .toList(),
                 ),
-              ),
+              ],
             ),
-            Row(
-              children: [
-                Expanded(
+          ),
+          SizedBox(height: 16.h),
+          _SectionRow(
+            title: DemoLocalizations.Stats_compared,
+            onInfo: () {
+              showDialog(
+                context: context,
+                builder: (_) => Dialog(
+                  backgroundColor: scheme.surface,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(10, 0, 0, 4),
-                    child: Text(
-                      DemoLocalizations.Stats_compared,
-                      style: TextUtils.setTextStyle(
-                          color: Theme.of(context).colorScheme.onSurface,
-                          fontSize: 10.sp),
-                      overflow: TextOverflow.ellipsis,
+                    padding: const EdgeInsets.fromLTRB(43, 20, 24, 40),
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(DemoLocalizations.description,
+                              style: TextUtils.setTextStyle(fontSize: 18.sp)),
+                          const SizedBox(height: 18),
+                          Text(DemoLocalizations.stat_info,
+                              style: TextUtils.setTextStyle(fontSize: 13.sp)),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(0, 0, 60, 4),
-                  child: IconButton(
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    onPressed: () {
-                      showDialog(
-                        context: context,
-                        builder: (_) => Dialog(
-                          backgroundColor:
-                              Theme.of(context).colorScheme.surface,
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12)),
-                          child: Stack(
-                            children: [
-                              Padding(
-                                padding:
-                                    const EdgeInsets.fromLTRB(43, 20, 24, 40),
-                                child: SingleChildScrollView(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(DemoLocalizations.description,
-                                          style: TextUtils.setTextStyle(
-                                              fontSize: 20)),
-                                      const SizedBox(height: 20),
-                                      Text(DemoLocalizations.stat_info,
-                                          style: TextUtils.setTextStyle()),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              Positioned(
-                                right: 0,
-                                bottom: 0,
-                                child: TextButton(
-                                  onPressed: () => Navigator.pop(context),
-                                  child: Text(DemoLocalizations.close),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.question_mark, size: 15),
+              );
+            },
+          ),
+          SizedBox(height: 10.h),
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18.r),
+              color: scheme.surface,
+              boxShadow: [
+                BoxShadow(
+                  color: scheme.shadow.withOpacity(0.08),
+                  blurRadius: 16,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+              border: Border.all(color: scheme.outlineVariant.withOpacity(0.22)),
+            ),
+            padding: EdgeInsets.symmetric(vertical: 14.h, horizontal: 14.w),
+            child: Column(
+              children: [
+                _SectionLabel(text: DemoLocalizations.seasonPerformance),
+                Player_stat_lists_DetailColumn(
+                  label: DemoLocalizations.numberOfGames,
+                  value: stat.gameAppearances?.toString() ?? '-',
+                  normalizedValue: _norm(
+                    stat.gameAppearances?.toDouble() ?? 0,
+                    gamesApperance.toDouble(),
+                  ),
+                ),
+                Player_stat_lists_DetailColumn(
+                  label: DemoLocalizations.minutesPlayed,
+                  value: stat.gameMinutes?.toString() ?? '-',
+                  normalizedValue: _norm(
+                    stat.gameMinutes?.toDouble() ?? 0,
+                    minutesplayed.toDouble(),
+                  ),
+                ),
+                Player_stat_lists_DetailColumn(
+                  label: DemoLocalizations.waiter,
+                  value: stat.substitutedBench?.toString() ?? '-',
+                  normalizedValue: _norm(
+                    stat.substitutedBench?.toDouble() ?? 0,
+                    substitutedBench.toDouble(),
+                  ),
+                ),
+                Player_stat_lists_DetailColumn(
+                  label: DemoLocalizations.generalTest,
+                  value: stat.totalShot?.toString() ?? '-',
+                  normalizedValue: _norm(
+                    stat.totalShot?.toDouble() ?? 0,
+                    totalShot.toDouble(),
+                  ),
+                ),
+                Player_stat_lists_DetailColumn(
+                  label: DemoLocalizations.onTargetTrials,
+                  value: stat.onShot?.toString() ?? '-',
+                  normalizedValue: _norm(
+                    stat.onShot?.toDouble() ?? 0,
+                    onShot.toDouble(),
+                  ),
+                ),
+                Player_stat_lists_DetailColumn(
+                  label: DemoLocalizations.totalGoalsScored,
+                  value: stat.totalGoals?.toString() ?? '-',
+                  normalizedValue: _norm(
+                    stat.totalGoals?.toDouble() ?? 0,
+                    totalGoals.toDouble(),
+                  ),
+                ),
+                Player_stat_lists_DetailColumn(
+                  label: DemoLocalizations.totalGoalsConceded,
+                  value: stat.goalsConceded?.toString() ?? '-',
+                  normalizedValue: _norm(
+                    stat.goalsConceded?.toDouble() ?? 0,
+                    goalsConceaded.toDouble(),
+                  ),
+                ),
+                const Divider(height: 22),
+                _SectionLabel(text: DemoLocalizations.totalPass),
+                Player_stat_lists_DetailColumn(
+                  label: DemoLocalizations.heAcceptedForTheGoal,
+                  value: stat.assists?.toString() ?? '-',
+                  normalizedValue: _norm(
+                    stat.assists?.toDouble() ?? 0,
+                    assists.toDouble(),
+                  ),
+                ),
+                Player_stat_lists_DetailColumn(
+                  label: DemoLocalizations.whoSavedHim,
+                  value: stat.totalSaves?.toString() ?? '-',
+                  normalizedValue: _normSaves(stat.totalSaves?.toDouble() ?? 0),
+                ),
+                Player_stat_lists_DetailColumn(
+                  label: DemoLocalizations.totalPass,
+                  value: stat.totalPasses?.toString() ?? '-',
+                  normalizedValue: _norm(
+                    stat.totalPasses?.toDouble() ?? 0,
+                    totalPasses.toDouble(),
+                  ),
+                ),
+                Player_stat_lists_DetailColumn(
+                  label: DemoLocalizations.keyRelay,
+                  value: stat.keyPasses?.toString() ?? '-',
+                  normalizedValue: _norm(
+                    stat.keyPasses?.toDouble() ?? 0,
+                    keypasses.toDouble(),
+                  ),
+                ),
+                Player_stat_lists_DetailColumn(
+                  label: DemoLocalizations.relaySuccess,
+                  value: stat.passesAccuracy?.toString() ?? '-',
+                  normalizedValue: _norm(
+                    stat.passesAccuracy?.toDouble() ?? 0,
+                    passaccuracy.toDouble(),
+                  ),
+                ),
+                const Divider(height: 22),
+                _SectionLabel(text: DemoLocalizations.totalTackle),
+                Player_stat_lists_DetailColumn(
+                  label: DemoLocalizations.totalTackle,
+                  value: stat.totalTackles?.toString() ?? '-',
+                  normalizedValue: _norm(
+                    stat.totalTackles?.toDouble() ?? 0,
+                    totaltackels.toDouble(),
+                  ),
+                ),
+                Player_stat_lists_DetailColumn(
+                  label: DemoLocalizations.totalBlocks,
+                  value: stat.totalBlocks?.toString() ?? '-',
+                  normalizedValue: _norm(
+                    stat.totalBlocks?.toDouble() ?? 0,
+                    totalblocks.toDouble(),
+                  ),
+                ),
+                Player_stat_lists_DetailColumn(
+                  label: DemoLocalizations.totalInterceptions,
+                  value: stat.totalInterceptions?.toString() ?? '-',
+                  normalizedValue: _norm(
+                    stat.totalInterceptions?.toDouble() ?? 0,
+                    totalinterceptions.toDouble(),
+                  ),
+                ),
+                Player_stat_lists_DetailColumn(
+                  label: DemoLocalizations.duelsTotal,
+                  value: stat.duelsTotal?.toString() ?? '-',
+                  normalizedValue:
+                      _normDuelsTotal(stat.duelsTotal?.toDouble() ?? 0),
+                ),
+                Player_stat_lists_DetailColumn(
+                  label: DemoLocalizations.duelsWon,
+                  value: stat.duelsWon?.toString() ?? '-',
+                  normalizedValue: _norm(
+                    stat.duelsWon?.toDouble() ?? 0,
+                    duelswon.toDouble(),
+                  ),
+                ),
+                Player_stat_lists_DetailColumn(
+                  label: DemoLocalizations.dribbleAttempts,
+                  value: stat.dribbleAttempts?.toString() ?? '-',
+                  normalizedValue: _norm(
+                    stat.dribbleAttempts?.toDouble() ?? 0,
+                    dribbleattempts.toDouble(),
+                  ),
+                ),
+                Player_stat_lists_DetailColumn(
+                  label: DemoLocalizations.dribbleSuccess,
+                  value: stat.dribbleSuccess?.toString() ?? '-',
+                  normalizedValue: _norm(
+                    stat.dribbleSuccess?.toDouble() ?? 0,
+                    dribblesuccess.toDouble(),
+                  ),
+                ),
+                Player_stat_lists_DetailColumn(
+                  label: DemoLocalizations.dribblesPast,
+                  value: stat.dribblePast?.toString() ?? '-',
+                  normalizedValue: _norm(
+                    stat.dribblePast?.toDouble() ?? 0,
+                    dribblepast.toDouble(),
+                  ),
+                ),
+                const Divider(height: 22),
+                _SectionLabel(text: DemoLocalizations.foul),
+                Player_stat_lists_DetailColumn(
+                  label: DemoLocalizations.foulsDrawn,
+                  value: stat.foulsDrawn?.toString() ?? '-',
+                  normalizedValue: _norm(
+                    stat.foulsDrawn?.toDouble() ?? 0,
+                    foulsdrawn.toDouble(),
+                  ),
+                ),
+                Player_stat_lists_DetailColumn(
+                  label: DemoLocalizations.committedFouls,
+                  value: stat.foulsCommitted?.toString() ?? '-',
+                  normalizedValue: _norm(
+                    stat.foulsCommitted?.toDouble() ?? 0,
+                    foulscomitted.toDouble(),
+                  ),
+                ),
+                Player_stat_lists_DetailColumn(
+                  label: DemoLocalizations.yellowCards,
+                  value: stat.yellowCards?.toString() ?? '-',
+                  normalizedValue: _norm(
+                    stat.yellowCards?.toDouble() ?? 0,
+                    yellow.toDouble(),
+                  ),
+                ),
+                Player_stat_lists_DetailColumn(
+                  label: DemoLocalizations.yellowRedCards,
+                  value: stat.yellowRedCards?.toString() ?? '-',
+                  normalizedValue: _norm(
+                    stat.yellowRedCards?.toDouble() ?? 0,
+                    yellowred.toDouble(),
+                  ),
+                ),
+                Player_stat_lists_DetailColumn(
+                  label: DemoLocalizations.redCard,
+                  value: stat.redCards?.toString() ?? '-',
+                  normalizedValue: _norm(
+                    stat.redCards?.toDouble() ?? 0,
+                    red.toDouble(),
+                  ),
+                ),
+                const Divider(height: 22),
+                _SectionLabel(text: DemoLocalizations.penality),
+                Player_stat_lists_DetailColumn(
+                  label: DemoLocalizations.penaltyWon,
+                  value: stat.penalityWon?.toString() ?? '-',
+                  normalizedValue: _norm(
+                    stat.penalityWon?.toDouble() ?? 0,
+                    penalitywon.toDouble(),
+                  ),
+                ),
+                Player_stat_lists_DetailColumn(
+                  label: DemoLocalizations.penaltyCommitted,
+                  value: stat.penalityCommitted?.toString() ?? '-',
+                  normalizedValue: _norm(
+                    stat.penalityCommitted?.toDouble() ?? 0,
+                    penalitycommited.toDouble(),
+                  ),
+                ),
+                Player_stat_lists_DetailColumn(
+                  label: DemoLocalizations.penalty_scored,
+                  value: stat.penalityScored?.toString() ?? '-',
+                  normalizedValue: _norm(
+                    stat.penalityScored?.toDouble() ?? 0,
+                    penalityscored.toDouble(),
+                  ),
+                ),
+                Player_stat_lists_DetailColumn(
+                  label: DemoLocalizations.penalty_missed,
+                  value: stat.penalityMissed?.toString() ?? '-',
+                  normalizedValue: _norm(
+                    stat.penalityMissed?.toDouble() ?? 0,
+                    penalitymissed.toDouble(),
+                  ),
+                ),
+                Player_stat_lists_DetailColumn(
+                  label: DemoLocalizations.penaltySaved,
+                  value: stat.penalitySaved?.toString() ?? '-',
+                  normalizedValue: _norm(
+                    stat.penalitySaved?.toDouble() ?? 0,
+                    penalitysaved.toDouble(),
                   ),
                 ),
               ],
             ),
-            Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(10.0),
-                color: Theme.of(context).colorScheme.surface,
-                boxShadow: [
-                  BoxShadow(
-                      color: Theme.of(context).colorScheme.shadow,
-                      blurRadius: 4,
-                      offset: const Offset(0, 4)),
-                ],
-              ),
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                children: [
-                  // Appearance & Minutes
-                  Player_stat_lists_DetailColumn(
-                    label: DemoLocalizations.numberOfGames,
-                    value: stat.gameAppearances?.toString() ?? '-',
-                    normalizedValue: _norm(
-                        stat.gameAppearances?.toDouble() ?? 0,
-                        gamesApperance.toDouble()),
-                  ),
-                  Player_stat_lists_DetailColumn(
-                    label: DemoLocalizations.minutesPlayed,
-                    value: stat.gameMinutes?.toString() ?? '-',
-                    normalizedValue: _norm(stat.gameMinutes?.toDouble() ?? 0,
-                        minutesplayed.toDouble()),
-                  ),
+          ),
+          SizedBox(height: 40.h),
+        ],
+      ),
+    );
+  }
+}
 
-                  // Bench & Shots
-                  Player_stat_lists_DetailColumn(
-                    label: DemoLocalizations.waiter,
-                    value: stat.substitutedBench?.toString() ?? '-',
-                    normalizedValue: _norm(
-                        stat.substitutedBench?.toDouble() ?? 0,
-                        substitutedBench.toDouble()),
-                  ),
-                  if (stat.totalShot != null)
-                    Player_stat_lists_DetailColumn(
-                      label: DemoLocalizations.generalTest,
-                      value: stat.totalShot.toString(),
-                      normalizedValue: _norm(
-                          stat.totalShot!.toDouble(), totalShot.toDouble()),
-                    ),
+class _SectionRow extends StatelessWidget {
+  final String title;
+  final VoidCallback onInfo;
 
-                  // On Target & Goals
-                  Player_stat_lists_DetailColumn(
-                    label: DemoLocalizations.onTargetTrials,
-                    value: stat.onShot?.toString() ?? '-',
-                    normalizedValue:
-                        _norm(stat.onShot?.toDouble() ?? 0, onShot.toDouble()),
-                  ),
-                  Player_stat_lists_DetailColumn(
-                    label: DemoLocalizations.totalGoalsScored,
-                    value: stat.totalGoals?.toString() ?? '-',
-                    normalizedValue: _norm(stat.totalGoals?.toDouble() ?? 0,
-                        totalGoals.toDouble()),
-                  ),
-                  Player_stat_lists_DetailColumn(
-                    label: DemoLocalizations.totalGoalsConceded,
-                    value: stat.goalsConceded?.toString() ?? '-',
-                    normalizedValue: _norm(stat.goalsConceded?.toDouble() ?? 0,
-                        goalsConceaded.toDouble()),
-                  ),
+  const _SectionRow({required this.title, required this.onInfo});
 
-                  // Assists, Saves, Passes
-                  Player_stat_lists_DetailColumn(
-                    label: DemoLocalizations.heAcceptedForTheGoal,
-                    value: stat.assists?.toString() ?? '-',
-                    normalizedValue: _norm(
-                        stat.assists?.toDouble() ?? 0, assists.toDouble()),
-                  ),
-                  Player_stat_lists_DetailColumn(
-                    label: DemoLocalizations.whoSavedHim,
-                    value: stat.totalSaves?.toString() ?? '-',
-                    normalizedValue:
-                        _normSaves(stat.totalSaves?.toDouble() ?? 0),
-                  ),
-                  Player_stat_lists_DetailColumn(
-                    label: DemoLocalizations.totalPass,
-                    value: stat.totalPasses?.toString() ?? '-',
-                    normalizedValue: _norm(stat.totalPasses?.toDouble() ?? 0,
-                        totalPasses.toDouble()),
-                  ),
-
-                  // Key Passes, Accuracy, Tackles
-                  Player_stat_lists_DetailColumn(
-                    label: DemoLocalizations.keyRelay,
-                    value: stat.keyPasses?.toString() ?? '-',
-                    normalizedValue: _norm(
-                        stat.keyPasses?.toDouble() ?? 0, keypasses.toDouble()),
-                  ),
-                  Player_stat_lists_DetailColumn(
-                    label: DemoLocalizations.relaySuccess,
-                    value: stat.passesAccuracy?.toString() ?? '-',
-                    normalizedValue: _norm(stat.passesAccuracy?.toDouble() ?? 0,
-                        passaccuracy.toDouble()),
-                  ),
-                  Player_stat_lists_DetailColumn(
-                    label: DemoLocalizations.totalTackle,
-                    value: stat.totalTackles?.toString() ?? '-',
-                    normalizedValue: _norm(stat.totalTackles?.toDouble() ?? 0,
-                        totaltackels.toDouble()),
-                  ),
-
-                  // Blocks, Interceptions, Duels Total
-                  Player_stat_lists_DetailColumn(
-                    label: DemoLocalizations.totalBlocks,
-                    value: stat.totalBlocks?.toString() ?? '-',
-                    normalizedValue: _norm(stat.totalBlocks?.toDouble() ?? 0,
-                        totalblocks.toDouble()),
-                  ),
-                  Player_stat_lists_DetailColumn(
-                    label: DemoLocalizations.totalInterceptions,
-                    value: stat.totalInterceptions?.toString() ?? '-',
-                    normalizedValue: _norm(
-                        stat.totalInterceptions?.toDouble() ?? 0,
-                        totalinterceptions.toDouble()),
-                  ),
-                  Player_stat_lists_DetailColumn(
-                    label: DemoLocalizations.duelsTotal,
-                    value: stat.duelsTotal?.toString() ?? '-',
-                    normalizedValue:
-                        _normDuelsTotal(stat.duelsTotal?.toDouble() ?? 0),
-                  ),
-
-                  // Duels Won, Dribble Attempts, Success
-                  Player_stat_lists_DetailColumn(
-                    label: DemoLocalizations.duelsWon,
-                    value: stat.duelsWon?.toString() ?? '-',
-                    normalizedValue: _norm(
-                        stat.duelsWon?.toDouble() ?? 0, duelswon.toDouble()),
-                  ),
-                  Player_stat_lists_DetailColumn(
-                    label: DemoLocalizations.dribbleAttempts,
-                    value: stat.dribbleAttempts?.toString() ?? '-',
-                    normalizedValue: _norm(
-                        stat.dribbleAttempts?.toDouble() ?? 0,
-                        dribbleattempts.toDouble()),
-                  ),
-                  Player_stat_lists_DetailColumn(
-                    label: DemoLocalizations.dribbleSuccess,
-                    value: stat.dribbleSuccess?.toString() ?? '-',
-                    normalizedValue: _norm(stat.dribbleSuccess?.toDouble() ?? 0,
-                        dribblesuccess.toDouble()),
-                  ),
-
-                  // Dribbles Past, Fouls Drawn, Committed
-                  Player_stat_lists_DetailColumn(
-                    label: DemoLocalizations.dribblesPast,
-                    value: stat.dribblePast?.toString() ?? '-',
-                    normalizedValue: _norm(stat.dribblePast?.toDouble() ?? 0,
-                        dribblepast.toDouble()),
-                  ),
-                  Player_stat_lists_DetailColumn(
-                    label: DemoLocalizations.foulsDrawn,
-                    value: stat.foulsDrawn?.toString() ?? '-',
-                    normalizedValue: _norm(stat.foulsDrawn?.toDouble() ?? 0,
-                        foulsdrawn.toDouble()),
-                  ),
-                  Player_stat_lists_DetailColumn(
-                    label: DemoLocalizations.committedFouls,
-                    value: stat.foulsCommitted?.toString() ?? '-',
-                    normalizedValue: _norm(stat.foulsCommitted?.toDouble() ?? 0,
-                        foulscomitted.toDouble()),
-                  ),
-
-                  // Cards
-                  Player_stat_lists_DetailColumn(
-                    label: DemoLocalizations.yellowCards,
-                    value: stat.yellowCards?.toString() ?? '-',
-                    normalizedValue: _norm(
-                        stat.yellowCards?.toDouble() ?? 0, yellow.toDouble()),
-                  ),
-                  Player_stat_lists_DetailColumn(
-                    label: DemoLocalizations.yellowRedCards,
-                    value: stat.yellowRedCards?.toString() ?? '-',
-                    normalizedValue: _norm(stat.yellowRedCards?.toDouble() ?? 0,
-                        yellowred.toDouble()),
-                  ),
-                  Player_stat_lists_DetailColumn(
-                    label: DemoLocalizations.redCard,
-                    value: stat.redCards?.toString() ?? '-',
-                    normalizedValue:
-                        _norm(stat.redCards?.toDouble() ?? 0, red.toDouble()),
-                  ),
-
-                  // Penalties
-                  Player_stat_lists_DetailColumn(
-                    label: DemoLocalizations.penaltyWon,
-                    value: stat.penalityWon?.toString() ?? '-',
-                    normalizedValue: _norm(stat.penalityWon?.toDouble() ?? 0,
-                        penalitywon.toDouble()),
-                  ),
-                  Player_stat_lists_DetailColumn(
-                    label: DemoLocalizations.penaltyCommitted,
-                    value: stat.penalityCommitted?.toString() ?? '-',
-                    normalizedValue: _norm(
-                        stat.penalityCommitted?.toDouble() ?? 0,
-                        penalitycommited.toDouble()),
-                  ),
-                  Player_stat_lists_DetailColumn(
-                    label: DemoLocalizations.penalty_scored,
-                    value: stat.penalityScored?.toString() ?? '-',
-                    normalizedValue: _norm(stat.penalityScored?.toDouble() ?? 0,
-                        penalityscored.toDouble()),
-                  ),
-                  Player_stat_lists_DetailColumn(
-                    label: DemoLocalizations.penalty_missed,
-                    value: stat.penalityMissed?.toString() ?? '-',
-                    normalizedValue: _norm(stat.penalityMissed?.toDouble() ?? 0,
-                        penalitymissed.toDouble()),
-                  ),
-                  Player_stat_lists_DetailColumn(
-                    label: DemoLocalizations.penaltySaved,
-                    value: stat.penalitySaved?.toString() ?? '-',
-                    normalizedValue: _norm(stat.penalitySaved?.toDouble() ?? 0,
-                        penalitysaved.toDouble()),
-                  ),
-                ],
-              ),
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            title,
+            style: TextUtils.setTextStyle(
+              fontSize: 12.sp,
+              fontWeight: FontWeight.w700,
+              color: scheme.onSurface,
             ),
-            SizedBox(height: 50.h),
-          ],
+          ),
+        ),
+        IconButton(
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(),
+          icon: Icon(Icons.info_outline, size: 18.sp, color: scheme.onSurfaceVariant),
+          onPressed: onInfo,
+        ),
+      ],
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  final String text;
+  const _SectionLabel({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: EdgeInsets.only(bottom: 4.h),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Text(
+          text,
+          style: TextUtils.setTextStyle(
+            fontSize: 12.sp,
+            fontWeight: FontWeight.w700,
+            color: scheme.onSurfaceVariant,
+          ),
         ),
       ),
     );
   }
 }
 
-Widget _buildStatItem({required String label, required String value}) {
-  final String displayValue =
-      value.trim() == 'null' || value.isEmpty ? '-' : value;
-
-  return Column(
-    children: [
-      Text(
-        label,
-        textAlign: TextAlign.center,
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-        style: TextUtils.setTextStyle(
-          fontSize: 13.sp,
-          fontWeight: FontWeight.w500,
-          color: Colors.grey.shade600,
-        ),
-      ),
-      SizedBox(height: 10.h),
-      Text(
-        displayValue,
-        textAlign: TextAlign.center,
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-        style: TextUtils.setTextStyle(
-          fontSize: 22.sp,
-          fontWeight: FontWeight.w800,
-          letterSpacing: -0.5,
-        ),
-      ),
-    ],
-  );
+class _MetricBadgeData {
+  final String label;
+  final String value;
+  final IconData icon;
+  const _MetricBadgeData({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
 }
 
-Color _getAdvancedColor(String? ratingString) {
-  final rating = double.tryParse(ratingString ?? '') ?? 0.0;
-  if (rating == 0) return Colors.grey.withOpacity(0.5);
-  if (rating < 5.0) {
-    return Color.lerp(Colors.red.shade900, Colors.red.shade400, rating / 5)!;
-  } else if (rating < 7.0) {
-    return Color.lerp(
-        Colors.orange.shade400, Colors.yellow.shade700, (rating - 5) / 2)!;
-  } else if (rating < 8.5) {
-    return Color.lerp(
-        Colors.lightGreen, Colors.green.shade700, (rating - 7) / 1.5)!;
-  }
-  return Colors.blueAccent.shade700;
-}
+class _MetricBadge extends StatelessWidget {
+  final _MetricBadgeData data;
+  const _MetricBadge({required this.data});
 
-Widget _buildRankItem({required String value}) {
-  final double rating = double.tryParse(value) ?? 0.0;
-  final Color baseColor = _getAdvancedColor(value);
-
-  return Column(
-    children: [
-      Text(
-        DemoLocalizations.rank, // or DemoLocalizations.rank
-        textAlign: TextAlign.center,
-        style: TextUtils.setTextStyle(
-          fontSize: 13.sp,
-          color: Colors.grey.shade600,
-          fontWeight: FontWeight.w500,
-        ),
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14.r),
+        color: scheme.surface.withOpacity(0.92),
+        border: Border.all(color: scheme.outlineVariant.withOpacity(0.25)),
       ),
-      SizedBox(
-          height: 10.h), // Same spacing as other items for perfect alignment
-      Container(
-        width:
-            40.w, // Slightly larger than before to match screenshot prominence
-        height: 40.h,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [baseColor, baseColor.withBlue(180)],
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 28.w,
+            height: 28.w,
+            decoration: BoxDecoration(
+              color: scheme.primary.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(10.r),
+            ),
+            child: Icon(data.icon, size: 16.sp, color: scheme.primary),
           ),
-          boxShadow: [
-            BoxShadow(
-              color: baseColor.withOpacity(0.6),
-              blurRadius: 12,
-              spreadRadius: 4,
-              offset: const Offset(0, 0),
-            ),
-            BoxShadow(
-              color: baseColor.withOpacity(0.4),
-              blurRadius: 20,
-              offset: const Offset(0, 6),
-            ),
-          ],
-        ),
-        child: Center(
-          child: Text(
-            rating.toStringAsFixed(1),
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 18.sp,
-              fontWeight: FontWeight.w900,
-              letterSpacing: -0.8,
-              shadows: const [
-                Shadow(
-                  color: Colors.black45,
-                  blurRadius: 4,
-                  offset: Offset(1, 2),
+          SizedBox(width: 10.w),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                data.value,
+                style: TextUtils.setTextStyle(
+                  fontSize: 13.sp,
+                  fontWeight: FontWeight.w800,
                 ),
-              ],
-            ),
+              ),
+              Text(
+                data.label,
+                style: TextUtils.setTextStyle(
+                  fontSize: 10.sp,
+                  color: scheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
           ),
-        ),
+        ],
       ),
-    ],
-  );
+    );
+  }
+}
+
+class _RatingDial extends StatelessWidget {
+  final double value; // 0-10
+  final Color color;
+
+  const _RatingDial({required this.value, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    final normalized = (value / 10).clamp(0.0, 1.0);
+    return SizedBox(
+      width: 70.w,
+      height: 70.w,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          CircularProgressIndicator(
+            value: normalized,
+            strokeWidth: 6,
+            backgroundColor: color.withOpacity(0.18),
+            valueColor: AlwaysStoppedAnimation(color),
+          ),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                value.toStringAsFixed(1),
+                style: TextUtils.setTextStyle(
+                  fontSize: 18.sp,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              Text(
+                DemoLocalizations.rank,
+                style: TextUtils.setTextStyle(
+                  fontSize: 9.sp,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }

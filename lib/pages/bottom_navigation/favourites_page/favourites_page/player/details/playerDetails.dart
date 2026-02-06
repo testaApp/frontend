@@ -1,4 +1,4 @@
-import 'dart:math';
+﻿import 'dart:math';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -17,13 +17,44 @@ import '../../../../../../models/favourites_page/squadModel.dart';
 import 'player_position_translation.dart';
 import '../../../../../constants/text_utils.dart';
 import 'squad_list.dart';
-import 'details_row.dart';
 
-/// ================== MODERN CARD DECORATION ==================
-BoxDecoration modernCard(BuildContext context) {
+/// ================== FUTURISTIC CARD DECORATION ==================
+BoxDecoration modernCard(
+  BuildContext context, {
+  bool glow = false,
+  bool subtle = false,
+}) {
+  final scheme = Theme.of(context).colorScheme;
+  final isDark = Theme.of(context).brightness == Brightness.dark;
+  final baseOpacity = subtle ? (isDark ? 0.88 : 0.98) : (isDark ? 0.94 : 1.0);
+
   return BoxDecoration(
-    color: Theme.of(context).colorScheme.surface,
-    borderRadius: BorderRadius.circular(12.r),
+    borderRadius: BorderRadius.circular(22.r),
+    gradient: LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [
+        scheme.surface.withOpacity(baseOpacity),
+        scheme.surfaceVariant.withOpacity(isDark ? 0.75 : 0.9),
+      ],
+    ),
+    border: Border.all(
+      color: scheme.outlineVariant.withOpacity(isDark ? 0.35 : 0.22),
+      width: 1,
+    ),
+    boxShadow: [
+      BoxShadow(
+        color: Colors.black.withOpacity(isDark ? 0.35 : 0.08),
+        blurRadius: 26,
+        offset: const Offset(0, 12),
+      ),
+      if (glow)
+        BoxShadow(
+          color: scheme.primary.withOpacity(isDark ? 0.4 : 0.24),
+          blurRadius: 40,
+          spreadRadius: -10,
+        ),
+    ],
   );
 }
 
@@ -59,6 +90,7 @@ class PlayerDetails extends StatelessWidget {
 
     final stats = playerProfile.statistics.first;
     final deviceLanguage = localLanguageNotifier.value;
+    final scheme = Theme.of(context).colorScheme;
 
     // ===================== FULL NAME (First + Last Name) =====================
     String getFullName() {
@@ -106,6 +138,19 @@ class PlayerDetails extends StatelessWidget {
           _ => playerProfile.englishCountryName ?? '',
         };
 
+    String getTeamName() => switch (deviceLanguage) {
+          'am' || 'tr' => stats.amharicTeamName?.isNotEmpty == true
+              ? stats.amharicTeamName!
+              : stats.englishTeamName ?? '',
+          'or' => stats.oromoTeamName?.isNotEmpty == true
+              ? stats.oromoTeamName!
+              : stats.englishTeamName ?? '',
+          'so' => stats.somaliTeamName?.isNotEmpty == true
+              ? stats.somaliTeamName!
+              : stats.englishTeamName ?? '',
+          _ => stats.englishTeamName ?? '',
+        };
+
     String getFormattedBirthDate() {
       if (playerProfile.birthDate == null) return 'N/A';
       try {
@@ -130,7 +175,7 @@ class PlayerDetails extends StatelessWidget {
       }
     }
 
-    Color _getRatingColor(String? rating) {
+    Color getRatingColor(String? rating) {
       final r = double.tryParse(rating ?? '') ?? 0;
       if (r >= 8) return Colors.green;
       if (r >= 7) return Colors.lightGreen;
@@ -151,6 +196,19 @@ class PlayerDetails extends StatelessWidget {
       _ => stats.englishLeagueName ?? 'League',
     };
 
+    final teamName = getTeamName();
+    final ratingText =
+        stats.gameRating?.isNotEmpty == true ? stats.gameRating! : '-';
+    final ratingValue = double.tryParse(stats.gameRating ?? '') ?? 0;
+    final ratingPercent = (ratingValue / 10).clamp(0.0, 1.0);
+    final playerImageUrl = (playerProfile.photo?.isNotEmpty == true)
+        ? playerProfile.photo!
+        : 'https://media.api-sports.io/football/players/${playerProfile.id}.png';
+    final teamLogo = stats.teamPhoto?.isNotEmpty == true
+        ? stats.teamPhoto!
+        : (playerProfile.currentTeamLogo ?? '');
+    final leagueLogo = stats.leaguePhoto ?? '';
+
     double topPart = switch (stats.gamePosition) {
       'Attacker' => 20.h,
       'Goalkeeper' => 170.h,
@@ -163,399 +221,1087 @@ class PlayerDetails extends StatelessWidget {
       _ => 85.h,
     };
 
-    return SingleChildScrollView(
-      padding: EdgeInsets.all(16.w),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          /// ================== MODERN PERSONAL INFO CARD ==================
-          Container(
-            width: double.infinity,
-            // height: 253.h,  // ← Remove this fixed height
-            padding: EdgeInsets.all(
-                16.w), // Add some bottom padding for breathing room inside
-            decoration: modernCard(context),
-            child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.center, // or center, as needed
-              children: [
-                Text(
-                  DemoLocalizations.name,
-                  style: TextUtils.setTextStyle(
-                    fontSize: 10.sp,
-                    height: 1.2,
-                    color: Colors.grey[600],
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                Text(
-                  getFullName(),
-                  style: TextUtils.setTextStyle(
-                    fontSize: 15.sp,
-                    fontWeight: FontWeight.w800,
-                    height: 1.2,
-                  ),
-                  textAlign: TextAlign.center,
-                  softWrap: true,
-                  maxLines: 3,
-                ),
-                SizedBox(
-                    height: 12.h), // Add consistent spacing before the grid
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final crossAxisCount = constraints.maxWidth > 400
-                        ? 4
-                        : (constraints.maxWidth > 160 ? 3 : 2);
-                    final childAspectRatio = crossAxisCount == 4
-                        ? 1.6
-                        : (crossAxisCount == 3 ? 1.4 : 1.3);
+    String formatInt(int? value) => value == null ? '-' : value.toString();
+    String formatPercent(int? value) =>
+        value == null ? '-' : '${value.toString()}%';
 
-                    return GridView.count(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      crossAxisCount: crossAxisCount,
-                      mainAxisSpacing: 8.h,
-                      crossAxisSpacing: 8.w,
-                      childAspectRatio: childAspectRatio,
-                      children: [
-                        _ModernDetailItem(
-                          label: DemoLocalizations
-                              .age, // or just an empty string if you don't want a label
-                          value: '${getAge()}',
+    return Stack(
+      children: [
+        const Positioned.fill(child: _FuturisticBackground()),
+        SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(16.w, 18.h, 16.w, 40.h),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _Reveal(
+                delay: const Duration(milliseconds: 0),
+                child: Container(
+                  padding: EdgeInsets.all(18.w),
+                  decoration: modernCard(context, glow: true),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              DemoLocalizations.name.toUpperCase(),
+                              style: TextUtils.setTextStyle(
+                                fontSize: 10.sp,
+                                letterSpacing: 1.4,
+                                color: scheme.onSurfaceVariant,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            SizedBox(height: 6.h),
+                            Text(
+                              getFullName(),
+                              style: TextUtils.setTextStyle(
+                                fontSize: 20.sp,
+                                fontWeight: FontWeight.w800,
+                                height: 1.1,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            SizedBox(height: 6.h),
+                            Text(
+                              _getTranslatedPlayerPosition(
+                                stats.gamePosition ?? '',
+                              ),
+                              style: TextUtils.setTextStyle(
+                                fontSize: 12.sp,
+                                fontWeight: FontWeight.w600,
+                                color: scheme.onSurfaceVariant,
+                              ),
+                            ),
+                            SizedBox(height: 12.h),
+                            if (teamName.trim().isNotEmpty)
+                              _IconLabelRow(
+                                text: teamName,
+                                imageUrl: teamLogo,
+                                icon: Icons.shield_outlined,
+                              ),
+                            if (teamName.trim().isNotEmpty)
+                              SizedBox(height: 6.h),
+                            if (leagueName.trim().isNotEmpty)
+                              _IconLabelRow(
+                                text: leagueName,
+                                imageUrl: leagueLogo,
+                                icon: Icons.emoji_events_outlined,
+                              ),
+                            if (playerProfile.injured == true)
+                              Padding(
+                                padding: EdgeInsets.only(top: 10.h),
+                                child: _TagPill(
+                                  text: DemoLocalizations.onInjury,
+                                  color: scheme.error,
+                                ),
+                              ),
+                          ],
                         ),
-                        _ModernDetailItem(
-                          label: DemoLocalizations.height,
-                          value: '${playerProfile.height ?? '-'} cm',
-                        ),
-                        _ModernDetailItem(
-                          label: DemoLocalizations.weight,
-                          value: '${playerProfile.weight ?? '-'} kg',
-                        ),
-                        _ModernDetailItem(
-                          label: DemoLocalizations.jerseyNumber,
-                          value: stats.gameNumber?.toString() ?? '-',
-                        ),
-                        _ModernDetailItem(
-                          label: DemoLocalizations.nationality,
-                          value: getCountryName(),
-                        ),
-                        _ModernDetailItem(
-                          label: DemoLocalizations.year,
-                          value: getFormattedBirthDate(),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-          SizedBox(height: 30.h),
-
-          /// ================== LEAGUE + STATS ==================
-          Container(
-            padding: EdgeInsets.all(18.w),
-            decoration: modernCard(context),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    CachedNetworkImage(
-                      imageUrl: stats.leaguePhoto ?? '',
-                      width: 18.w,
-                      height: 18.w,
-                      placeholder: (_, __) =>
-                          const CircularProgressIndicator(strokeWidth: 2),
-                      errorWidget: (_, __, ___) =>
-                          Icon(Icons.sports_soccer, size: 32.w),
-                    ),
-                    SizedBox(width: 12.w),
-                    Expanded(
-                      child: Text(
-                        leagueName,
-                        style: TextUtils.setTextStyle(
-                            fontSize: 13.sp, fontWeight: FontWeight.w600),
                       ),
-                    ),
-                  ],
+                      SizedBox(width: 14.w),
+                      _AvatarRing(
+                        imageUrl: playerImageUrl,
+                        ratingText: ratingText,
+                        ratingColor: getRatingColor(stats.gameRating),
+                        jerseyNumber: stats.gameNumber?.toString(),
+                      ),
+                    ],
+                  ),
                 ),
-                SizedBox(height: 18.h),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Player_league_performanceDetailRow1(
-                      label: DemoLocalizations.played,
-                      value: stats.gameAppearances.toString(),
-                    ),
-                    Player_league_performanceDetailRow1(
-                      label: DemoLocalizations.goal,
-                      value: stats.totalGoals.toString(),
-                    ),
-                    Player_league_performanceDetailRow1(
-                      label: DemoLocalizations.topAssist,
-                      value: stats.assists.toString(),
-                    ),
-                    // Rating circle with Rank label below it
-                    Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 36.w,
-                          height: 36.w,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: _getRatingColor(stats.gameRating),
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            stats.gameRating ?? '-',
-                            style: TextUtils.setTextStyle(
-                              fontSize: 16.sp,
-                              fontWeight: FontWeight.bold,
+              ),
+              SizedBox(height: 16.h),
+              _Reveal(
+                delay: const Duration(milliseconds: 80),
+                child: Container(
+                  padding: EdgeInsets.all(16.w),
+                  decoration: modernCard(context),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _SectionHeader(
+                        title: DemoLocalizations.profile.toUpperCase(),
+                        icon: Icons.tune_rounded,
+                      ),
+                      SizedBox(height: 12.h),
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          final crossAxisCount =
+                              constraints.maxWidth > 420 ? 3 : 2;
+                          final ratio = crossAxisCount == 3 ? 2.6 : 2.4;
+                          return GridView.count(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            crossAxisCount: crossAxisCount,
+                            mainAxisSpacing: 10.h,
+                            crossAxisSpacing: 10.w,
+                            childAspectRatio: ratio,
+                            children: [
+                              _StatPill(
+                                label: DemoLocalizations.age,
+                                value: getAge().toString(),
+                                icon: Icons.cake_outlined,
+                              ),
+                              _StatPill(
+                                label: DemoLocalizations.height,
+                                value: '${playerProfile.height ?? '-'} cm',
+                                icon: Icons.height_rounded,
+                              ),
+                              _StatPill(
+                                label: DemoLocalizations.weight,
+                                value: '${playerProfile.weight ?? '-'} kg',
+                                icon: Icons.monitor_weight_outlined,
+                              ),
+                              _StatPill(
+                                label: DemoLocalizations.jerseyNumber,
+                                value: stats.gameNumber?.toString() ?? '-',
+                                icon: Icons.confirmation_number_outlined,
+                              ),
+                              _StatPill(
+                                label: DemoLocalizations.nationality,
+                                value: getCountryName(),
+                                icon: Icons.public_outlined,
+                              ),
+                              _StatPill(
+                                label: DemoLocalizations.year,
+                                value: getFormattedBirthDate(),
+                                icon: Icons.event_outlined,
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              SizedBox(height: 16.h),
+              _Reveal(
+                delay: const Duration(milliseconds: 160),
+                child: Container(
+                  padding: EdgeInsets.all(16.w),
+                  decoration: modernCard(context),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Flexible(
+                            child: _SectionHeader(
+                              title: DemoLocalizations.seasonPerformance
+                                  .toUpperCase(),
+                              icon: Icons.insights_outlined,
+                              showAccent: false,
                             ),
                           ),
-                        ),
-                        SizedBox(
-                            height:
-                                4.h), // Small spacing between circle and text
-                        Text(
-                          DemoLocalizations.rank,
-                          style: TextUtils.setTextStyle(
-                            fontSize: 12.sp,
-                            color: Colors.grey[600],
-                            fontWeight: FontWeight.w500,
+                          SizedBox(width: 12.w),
+                          _RatingRing(
+                            value: ratingPercent,
+                            ratingText: ratingText,
+                            color: getRatingColor(stats.gameRating),
                           ),
-                          textAlign: TextAlign.center,
+                        ],
+                      ),
+                      SizedBox(height: 12.h),
+                      if (leagueName.trim().isNotEmpty)
+                        Row(
+                          children: [
+                            if (leagueLogo.isNotEmpty)
+                              CachedNetworkImage(
+                                imageUrl: leagueLogo,
+                                width: 20.w,
+                                height: 20.w,
+                                placeholder: (_, __) => SizedBox(
+                                  width: 20.w,
+                                  height: 20.w,
+                                  child: const CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                                errorWidget: (_, __, ___) => Icon(
+                                  Icons.sports_soccer,
+                                  size: 20.w,
+                                ),
+                              )
+                            else
+                              Icon(Icons.sports_soccer, size: 20.w),
+                            SizedBox(width: 8.w),
+                            Expanded(
+                              child: Text(
+                                leagueName,
+                                style: TextUtils.setTextStyle(
+                                  fontSize: 12.sp,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-
-          SizedBox(height: 20.h),
-
-          /// ================== RADAR CHART ==================
-          Container(
-            width: double.infinity,
-            height: 300.h,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(5.0),
-              color: Theme.of(context).colorScheme.surface,
-              boxShadow: [
-                BoxShadow(
-                  spreadRadius: 0,
-                  blurRadius: 4,
-                  offset: const Offset(0, 4),
-                  color: Colors.black.withOpacity(0.2),
-                ),
-              ],
-            ),
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(10, 10, 0, 0),
-                  child: Text(
-                    DemoLocalizations.player_trait,
-                    style: TextUtils.setTextStyle(
-                      fontSize: 18.sp,
-                      engFont: 12.sp,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                      if (leagueName.trim().isNotEmpty)
+                        SizedBox(height: 12.h),
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          final crossAxisCount =
+                              constraints.maxWidth > 420 ? 3 : 2;
+                          final ratio = crossAxisCount == 3 ? 2.5 : 2.7;
+                          return GridView.count(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            crossAxisCount: crossAxisCount,
+                            mainAxisSpacing: 10.h,
+                            crossAxisSpacing: 10.w,
+                            childAspectRatio: ratio,
+                            children: [
+                              _MetricTile(
+                                label: DemoLocalizations.played,
+                                value: formatInt(stats.gameAppearances),
+                                icon: Icons.sports_soccer,
+                              ),
+                              _MetricTile(
+                                label: DemoLocalizations.goal,
+                                value: formatInt(stats.totalGoals),
+                                icon: Icons.sports_score,
+                              ),
+                              _MetricTile(
+                                label: DemoLocalizations.topAssist,
+                                value: formatInt(stats.assists),
+                                icon: Icons.handshake_outlined,
+                              ),
+                              _MetricTile(
+                                label: DemoLocalizations.lineUp,
+                                value: formatInt(stats.gameLineups),
+                                icon: Icons.view_list_rounded,
+                              ),
+                              _MetricTile(
+                                label: DemoLocalizations.minutes,
+                                value: formatInt(stats.gameMinutes),
+                                icon: Icons.schedule,
+                              ),
+                              _MetricTile(
+                                label: DemoLocalizations.totalPass,
+                                value: formatPercent(stats.passesAccuracy),
+                                icon: Icons.swap_horiz_rounded,
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ],
                   ),
                 ),
-                Padding(
-                  padding:
-                      EdgeInsets.symmetric(horizontal: 10.w, vertical: 8.h),
+              ),
+              SizedBox(height: 16.h),
+              _Reveal(
+                delay: const Duration(milliseconds: 220),
+                child: Container(
+                  decoration: modernCard(context),
+                  padding: EdgeInsets.all(16.w),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              DemoLocalizations.player_trait,
+                              style: TextUtils.setTextStyle(
+                                fontSize: 14.sp,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(
+                              minWidth: 24,
+                              minHeight: 24,
+                            ),
+                            iconSize: 18,
+                            onPressed: () {
+                              showDialog(
+                                context: context,
+                                builder: (context) {
+                                  return Dialog(
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                    child: Stack(
+                                      children: <Widget>[
+                                        Container(
+                                          padding: const EdgeInsets.fromLTRB(
+                                              43.0, 20.0, 24.0, 40.0),
+                                          child: SingleChildScrollView(
+                                            child: ListBody(
+                                              children: <Widget>[
+                                                Text(
+                                                  DemoLocalizations.description,
+                                                  style: TextUtils.setTextStyle(
+                                                    fontSize: 18.sp,
+                                                    engFont: 12.sp,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 20),
+                                                Text(
+                                                  DemoLocalizations.describing,
+                                                  style: TextUtils.setTextStyle(
+                                                    fontSize: 14.sp,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                        Positioned(
+                                          right: 0,
+                                          bottom: 0,
+                                          child: TextButton(
+                                            child: Text(
+                                              DemoLocalizations.close,
+                                              style: TextUtils.setTextStyle(),
+                                            ),
+                                            onPressed: () =>
+                                                Navigator.of(context).pop(),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              );
+                            },
+                            icon: Icon(
+                              Icons.info_outline,
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 6.h),
+                      Text(
+                        DemoLocalizations.Stats_compared,
+                        style: TextUtils.setTextStyle(
+                          fontSize: 10.sp,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      SizedBox(height: 12.h),
+                      Center(
+                        child: PremiumRadarChartWidget(
+                          values: [
+                            (stats.totalBlocks ?? 0).toDouble(),
+                            (stats.duelsWon ?? 0).toDouble(),
+                            (stats.passesAccuracy ?? 0)
+                                .toDouble()
+                                .clamp(0, 100),
+                            (stats.assists ?? 0).toDouble(),
+                            (stats.totalShot ?? 0).toDouble(),
+                            (stats.totalGoals ?? 0).toDouble(),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              SizedBox(height: 16.h),
+              _Reveal(
+                delay: const Duration(milliseconds: 280),
+                child: Container(
+                  height: 260.h,
+                  decoration: modernCard(context),
+                  padding: EdgeInsets.all(14.w),
                   child: Row(
                     children: [
                       Expanded(
-                        child: Text(
-                          DemoLocalizations.Stats_compared,
-                          style: TextUtils.setTextStyle(fontSize: 10.sp),
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 2,
+                        flex: 3,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              DemoLocalizations.playground.toUpperCase(),
+                              style: TextUtils.setTextStyle(
+                                fontSize: 10.sp,
+                                letterSpacing: 1.3,
+                                color: scheme.onSurfaceVariant,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            SizedBox(height: 8.h),
+                            Text(
+                              _getTranslatedPlayerPosition(
+                                stats.gamePosition ?? '',
+                              ),
+                              style: TextUtils.setTextStyle(
+                                fontSize: 16.sp,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      SizedBox(width: 8.w), // Small spacing
-                      IconButton(
-                        padding: EdgeInsets.zero,
-                        constraints:
-                            const BoxConstraints(minWidth: 24, minHeight: 24),
-                        iconSize: 16,
-                        onPressed: () {
-                          showDialog(
-                            context: context,
-                            builder: (context) {
-                              return Dialog(
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
+                      Expanded(
+                        flex: 5,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            Image.asset('assets/football.png', height: 220.h),
+                            Positioned(
+                              top: topPart,
+                              child: ClipOval(
+                                child: CachedNetworkImage(
+                                  imageUrl:
+                                      'https://media.api-sports.io/football/players/${playerProfile.id}.png',
+                                  width: 34,
+                                  height: 34,
+                                  fit: BoxFit.cover,
+                                  placeholder: (_, __) =>
+                                      Container(color: Colors.grey[300]),
+                                  errorWidget: (_, __, ___) =>
+                                      const Icon(Icons.person, size: 30),
                                 ),
-                                child: Stack(
-                                  children: <Widget>[
-                                    Container(
-                                      padding: const EdgeInsets.fromLTRB(
-                                          43.0, 20.0, 24.0, 40.0),
-                                      child: SingleChildScrollView(
-                                        child: ListBody(
-                                          children: <Widget>[
-                                            Text(
-                                              DemoLocalizations.description,
-                                              style: TextUtils.setTextStyle(
-                                                fontSize: 18.sp,
-                                                engFont: 12.sp,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 20),
-                                            Text(
-                                              DemoLocalizations.describing,
-                                              style: TextUtils.setTextStyle(
-                                                fontSize: 14.sp,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                    Positioned(
-                                      right: 0,
-                                      bottom: 0,
-                                      child: TextButton(
-                                        child: Text(
-                                          DemoLocalizations.close,
-                                          style: TextUtils.setTextStyle(),
-                                        ),
-                                        onPressed: () =>
-                                            Navigator.of(context).pop(),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
-                          );
-                        },
-                        icon: Icon(
-                          Icons.info_outline,
-                          color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ],
-                  ),
-                ),
-                SizedBox(height: 10.h),
-                Expanded(
-                  child: Center(
-                    child: PremiumRadarChartWidget(
-                      values: [
-                        (stats.totalBlocks ?? 0).toDouble(),
-                        (stats.duelsWon ?? 0).toDouble(),
-                        (stats.passesAccuracy ?? 0).toDouble().clamp(0, 100),
-                        (stats.assists ?? 0).toDouble(),
-                        (stats.totalShot ?? 0).toDouble(),
-                        (stats.totalGoals ?? 0).toDouble(),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          SizedBox(height: 20.h),
-
-          /// ================== POSITION ==================
-          /// ================== POSITION + PITCH WITH ARROW ON THE RIGHT (OUTSIDE) ==================
-          Container(
-            height: 290.h,
-            decoration: modernCard(context),
-            child: Row(
-              children: [
-                // Left: Position text
-                Padding(
-                  padding: EdgeInsets.all(25.w),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        DemoLocalizations.playground,
-                        style: TextUtils.setTextStyle(
-                          fontSize: 13.sp,
-                          color: Colors.grey,
-                        ),
-                      ),
-                      SizedBox(height: 8.h),
-                      Text(
-                        _getTranslatedPlayerPosition(stats.gamePosition ?? ''),
-                        style: TextUtils.setTextStyle(
-                          fontSize: 18.sp,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Middle: Pitch with player photo
-                Expanded(
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Image.asset('assets/football.png', height: 240.h),
-                      Positioned(
-                        top: topPart,
-                        child: ClipOval(
-                          child: CachedNetworkImage(
-                            imageUrl:
-                                'https://media.api-sports.io/football/players/${playerProfile.id}.png',
-                            width: 30,
-                            height: 30,
-                            fit: BoxFit.cover,
-                            placeholder: (_, __) =>
-                                Container(color: Colors.grey[300]),
-                            errorWidget: (_, __, ___) =>
-                                Icon(Icons.person, size: 30),
+                      Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.arrow_upward_rounded,
+                            size: 22.sp,
+                            color: scheme.primary,
                           ),
-                        ),
+                          SizedBox(height: 6.h),
+                          Text(
+                            DemoLocalizations.field,
+                            style: TextUtils.setTextStyle(
+                              fontSize: 10.sp,
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
                 ),
-
-                // Right: Green upward arrow (outside the pitch, on the card's right edge)
-                Padding(
-                  padding: EdgeInsets.only(right: 5.w),
-                  child: Center(
-                    child: Icon(
-                      Icons.arrow_upward_rounded,
-                      size: 19.sp,
-                      color: Colors
-                          .green, // Or: Colorscontainer.greenColor if you have it
-                    ),
-                  ),
+              ),
+              SizedBox(height: 20.h),
+              _SectionHeader(
+                title: DemoLocalizations.team.toUpperCase(),
+                icon: Icons.group_outlined,
+              ),
+              SizedBox(height: 12.h),
+              _Reveal(
+                delay: const Duration(milliseconds: 340),
+                child: PlayersView(
+                  playerId: playerProfile.id,
+                  playerNameTextColor: scheme.onSurface,
+                  playerNumberTextColor: scheme.onSurface,
                 ),
-              ],
+              ),
+              SizedBox(height: 60.h),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _FuturisticBackground extends StatelessWidget {
+  const _FuturisticBackground();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            isDark ? const Color(0xFF0A1020) : const Color(0xFFF3F7FF),
+            isDark ? const Color(0xFF101A2E) : const Color(0xFFFFFFFF),
+          ],
+        ),
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            top: -80.h,
+            right: -40.w,
+            child: _GlowOrb(
+              color: scheme.primary.withOpacity(isDark ? 0.35 : 0.25),
+              size: 220.w,
             ),
           ),
-          SizedBox(height: 24.h),
-
-          /// ================== TEAM ==================
-          Text(DemoLocalizations.team.toUpperCase(),
-              style: TextUtils.setTextStyle(
-                  fontSize: 13.sp, letterSpacing: 1.2, color: Colors.grey)),
-          SizedBox(height: 12.h),
-
-          PlayersView(
-            playerId: playerProfile.id,
-            playerNameTextColor: Theme.of(context).colorScheme.onSurface,
-            playerNumberTextColor: Theme.of(context).colorScheme.onSurface,
+          Positioned(
+            bottom: -120.h,
+            left: -60.w,
+            child: _GlowOrb(
+              color: scheme.tertiary.withOpacity(isDark ? 0.3 : 0.2),
+              size: 260.w,
+            ),
           ),
-
-          SizedBox(height: 60.h),
+          Positioned(
+            top: 120.h,
+            left: 24.w,
+            right: 24.w,
+            child: Container(
+              height: 1,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.transparent,
+                    scheme.primary.withOpacity(isDark ? 0.4 : 0.25),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+            ),
+          ),
         ],
       ),
+    );
+  }
+}
+
+class _GlowOrb extends StatelessWidget {
+  final Color color;
+  final double size;
+
+  const _GlowOrb({required this.color, required this.size});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: color.withOpacity(0.18),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.5),
+            blurRadius: 90,
+            spreadRadius: 25,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Reveal extends StatefulWidget {
+  final Widget child;
+  final Duration delay;
+
+  const _Reveal({required this.child, required this.delay});
+
+  @override
+  State<_Reveal> createState() => _RevealState();
+}
+
+class _RevealState extends State<_Reveal> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _opacity;
+  late final Animation<Offset> _offset;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 650),
+    );
+    _opacity = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutCubic,
+    );
+    _offset = Tween<Offset>(
+      begin: const Offset(0, 0.06),
+      end: Offset.zero,
+    ).animate(_opacity);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future.delayed(widget.delay, () {
+        if (mounted) _controller.forward();
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _opacity,
+      child: SlideTransition(
+        position: _offset,
+        child: widget.child,
+      ),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  final String title;
+  final IconData? icon;
+  final bool showAccent;
+
+  const _SectionHeader({
+    required this.title,
+    this.icon,
+    this.showAccent = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (showAccent)
+          Container(
+            width: 16.w,
+            height: 6.h,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(999),
+              gradient: LinearGradient(
+                colors: [
+                  scheme.primary,
+                  scheme.tertiary,
+                ],
+              ),
+            ),
+          ),
+        if (showAccent) SizedBox(width: 8.w),
+        if (icon != null) ...[
+          Icon(icon, size: 14.sp, color: scheme.primary),
+          SizedBox(width: 6.w),
+        ],
+        Text(
+          title,
+          overflow: TextOverflow.ellipsis,
+          maxLines: 1,
+          style: TextUtils.setTextStyle(
+            fontSize: 12.sp,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.2,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _StatPill extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+
+  const _StatPill({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 10.h),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16.r),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            scheme.surface.withOpacity(0.95),
+            scheme.surfaceVariant.withOpacity(0.85),
+          ],
+        ),
+        border: Border.all(
+          color: scheme.outlineVariant.withOpacity(0.25),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 28.w,
+            height: 28.w,
+            decoration: BoxDecoration(
+              color: scheme.primary.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(10.r),
+            ),
+            child: Icon(icon, size: 16.sp, color: scheme.primary),
+          ),
+          SizedBox(width: 8.w),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  value,
+                  style: TextUtils.setTextStyle(
+                    fontSize: 12.sp,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  label,
+                  style: TextUtils.setTextStyle(
+                    fontSize: 9.sp,
+                    color: scheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MetricTile extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+
+  const _MetricTile({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 6.h),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16.r),
+        color: scheme.surface.withOpacity(0.9),
+        border: Border.all(
+          color: scheme.outlineVariant.withOpacity(0.25),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 24.w,
+            height: 24.w,
+            decoration: BoxDecoration(
+              color: scheme.primary.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(10.r),
+            ),
+            child: Icon(icon, size: 14.sp, color: scheme.primary),
+          ),
+          SizedBox(width: 8.w),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  value,
+                  style: TextUtils.setTextStyle(
+                    fontSize: 11.sp,
+                    fontWeight: FontWeight.w800,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  label,
+                  style: TextUtils.setTextStyle(
+                    fontSize: 8.5.sp,
+                    color: scheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RatingRing extends StatelessWidget {
+  final double value;
+  final String ratingText;
+  final Color color;
+
+  const _RatingRing({
+    required this.value,
+    required this.ratingText,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          width: 54.w,
+          height: 54.w,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              CircularProgressIndicator(
+                value: value,
+                backgroundColor: color.withOpacity(0.2),
+                valueColor: AlwaysStoppedAnimation(color),
+                strokeWidth: 5,
+              ),
+              Text(
+                ratingText,
+                style: TextUtils.setTextStyle(
+                  fontSize: 12.sp,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(height: 4.h),
+        Text(
+          DemoLocalizations.rank,
+          style: TextUtils.setTextStyle(
+            fontSize: 9.sp,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _RatingPill extends StatelessWidget {
+  final String ratingText;
+  final Color color;
+
+  const _RatingPill({
+    required this.ratingText,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(999),
+        gradient: LinearGradient(
+          colors: [
+            color.withOpacity(0.2),
+            color.withOpacity(0.4),
+          ],
+        ),
+        border: Border.all(color: color.withOpacity(0.6)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.star_rounded, size: 12.sp, color: color),
+          SizedBox(width: 4.w),
+          Text(
+            ratingText,
+            style: TextUtils.setTextStyle(
+              fontSize: 10.sp,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TagPill extends StatelessWidget {
+  final String text;
+  final Color color;
+
+  const _TagPill({required this.text, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(999),
+        color: color.withOpacity(0.12),
+        border: Border.all(color: color.withOpacity(0.5)),
+      ),
+      child: Text(
+        text,
+        style: TextUtils.setTextStyle(
+          fontSize: 9.sp,
+          fontWeight: FontWeight.w600,
+          color: color,
+        ),
+      ),
+    );
+  }
+}
+
+class _IconLabelRow extends StatelessWidget {
+  final String text;
+  final String? imageUrl;
+  final IconData icon;
+
+  const _IconLabelRow({
+    required this.text,
+    this.imageUrl,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        if (imageUrl != null && imageUrl!.isNotEmpty)
+          CachedNetworkImage(
+            imageUrl: imageUrl!,
+            width: 18.w,
+            height: 18.w,
+            placeholder: (_, __) => SizedBox(
+              width: 18.w,
+              height: 18.w,
+              child: const CircularProgressIndicator(strokeWidth: 2),
+            ),
+            errorWidget: (_, __, ___) => Icon(icon, size: 18.w),
+          )
+        else
+          Icon(icon, size: 18.w),
+        SizedBox(width: 8.w),
+        Expanded(
+          child: Text(
+            text,
+            style: TextUtils.setTextStyle(
+              fontSize: 12.sp,
+              fontWeight: FontWeight.w600,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AvatarRing extends StatelessWidget {
+  final String imageUrl;
+  final String ratingText;
+  final Color ratingColor;
+  final String? jerseyNumber;
+
+  const _AvatarRing({
+    required this.imageUrl,
+    required this.ratingText,
+    required this.ratingColor,
+    required this.jerseyNumber,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Stack(
+      clipBehavior: Clip.none,
+      alignment: Alignment.center,
+      children: [
+        Container(
+          width: 92.w,
+          height: 92.w,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: LinearGradient(
+              colors: [
+                scheme.primary.withOpacity(0.7),
+                scheme.tertiary.withOpacity(0.7),
+              ],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: scheme.primary.withOpacity(0.25),
+                blurRadius: 20,
+                spreadRadius: 2,
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: EdgeInsets.all(3.w),
+            child: ClipOval(
+              child: CachedNetworkImage(
+                imageUrl: imageUrl,
+                fit: BoxFit.cover,
+                placeholder: (_, __) => Container(
+                  color: scheme.surfaceContainerHighest,
+                ),
+                errorWidget: (_, __, ___) => const Icon(Icons.person),
+              ),
+            ),
+          ),
+        ),
+        if (jerseyNumber != null && jerseyNumber!.isNotEmpty)
+          Positioned(
+            top: -6.h,
+            right: -6.w,
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 2.h),
+              decoration: BoxDecoration(
+                color: scheme.surface,
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(
+                  color: scheme.primary.withOpacity(0.5),
+                ),
+              ),
+              child: Text(
+                '#$jerseyNumber',
+                style: TextUtils.setTextStyle(
+                  fontSize: 9.sp,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+        Positioned(
+          bottom: -12.h,
+          child: _RatingPill(
+            ratingText: ratingText,
+            color: ratingColor,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -570,15 +1316,25 @@ class PremiumRadarChartWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accent = scheme.primary;
 
     final labels = [
-      DemoLocalizations.totalBlocks ?? "Blocks",
-      DemoLocalizations.duelsWon ?? "Duels Won",
-      DemoLocalizations.totalPass ?? "Pass Accuracy",
-      DemoLocalizations.topAssist ?? "Assists",
-      DemoLocalizations.shots ?? "Shots",
-      DemoLocalizations.goal ?? "Goals",
+      DemoLocalizations.totalBlocks.isNotEmpty
+          ? DemoLocalizations.totalBlocks
+          : "Blocks",
+      DemoLocalizations.duelsWon.isNotEmpty
+          ? DemoLocalizations.duelsWon
+          : "Duels Won",
+      DemoLocalizations.totalPass.isNotEmpty
+          ? DemoLocalizations.totalPass
+          : "Pass Accuracy",
+      DemoLocalizations.topAssist.isNotEmpty
+          ? DemoLocalizations.topAssist
+          : "Assists",
+      DemoLocalizations.shots.isNotEmpty ? DemoLocalizations.shots : "Shots",
+      DemoLocalizations.goal.isNotEmpty ? DemoLocalizations.goal : "Goals",
     ];
 
     return SizedBox(
@@ -588,19 +1344,11 @@ class PremiumRadarChartWidget extends StatelessWidget {
         painter: PremiumRadarChartPainter(
           values: values,
           labels: labels,
-          fillColor: isDark
-              ? const Color(0xFFB8860B) // Dark gold
-              : const Color(0xFFFFD700), // Bright gold
-          outlineColor:
-              isDark ? const Color(0xFFFFC107) : const Color(0xFFFFD700),
-          textColor: Theme.of(context).colorScheme.onSurface.withOpacity(0.9),
-          // ← ADD THESE TWO LINES TO FIX THE ERROR
-          gridColor: isDark
-              ? Colors.white.withOpacity(0.15)
-              : Colors.black.withOpacity(0.15),
-          spokeColor: isDark
-              ? Colors.white.withOpacity(0.2)
-              : Colors.black.withOpacity(0.2),
+          fillColor: accent.withOpacity(isDark ? 0.3 : 0.22),
+          outlineColor: accent.withOpacity(isDark ? 0.9 : 0.85),
+          textColor: scheme.onSurface.withOpacity(0.9),
+          gridColor: scheme.onSurface.withOpacity(isDark ? 0.12 : 0.08),
+          spokeColor: scheme.onSurface.withOpacity(isDark ? 0.18 : 0.12),
         ),
       ),
     );
@@ -629,8 +1377,7 @@ class PremiumRadarChartPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    final radius = min(size.width / 2, size.height / 2) *
-        0.75; // Reduced from 0.82// Reduced slightly
+    final radius = min(size.width / 2, size.height / 2) * 0.75;
     final angle = 2 * pi / values.length;
 
     // Grid
@@ -653,7 +1400,7 @@ class PremiumRadarChartPainter extends CustomPainter {
     final outlinePaint = Paint()
       ..color = outlineColor
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 3.5
+      ..strokeWidth = 3.2
       ..strokeCap = StrokeCap.round;
 
     // Draw concentric grid
@@ -690,9 +1437,9 @@ class PremiumRadarChartPainter extends CustomPainter {
     canvas.drawPath(dataPath, fillPaint);
     canvas.drawPath(dataPath, outlinePaint);
 
-    // Draw labels + percentages (with reduced offset to avoid cutoff)
+    // Draw labels + percentages
     final textPainter = TextPainter(textDirection: TextDirection.ltr);
-    final labelOffset = 16.0; // Reduced from 22 → prevents bottom overflow
+    final labelOffset = 14.0;
 
     for (int i = 0; i < labels.length; i++) {
       final percent = '${values[i].toInt()}%';
@@ -725,93 +1472,11 @@ class PremiumRadarChartPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
 
-/// ================== MODERN DETAIL ITEM  ==================
-class _ModernDetailItem extends StatelessWidget {
-  final String label;
-  final String value;
-  final String? subValue;
-
-  const _ModernDetailItem({
-    required this.label,
-    required this.value,
-    this.subValue,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(16.r),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 6,
-            offset: const Offset(0, 1),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize:
-            MainAxisSize.min, // Critical: don't take more height than needed
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // Value - allow shrinking if needed
-          Flexible(
-            child: Text(
-              value,
-              style: TextUtils.setTextStyle(
-                fontSize: 12.sp,
-                fontWeight: FontWeight.w700,
-              ),
-              textAlign: TextAlign.center,
-              overflow: TextOverflow.ellipsis,
-              maxLines: 2,
-            ),
-          ),
-          if (subValue != null) ...[
-            SizedBox(height: 3.h),
-            Text(
-              subValue!,
-              style: TextUtils.setTextStyle(
-                fontSize: 9.sp, // Slightly smaller to save space
-                color: Colors.grey[600],
-                fontWeight: FontWeight.w500,
-              ),
-              textAlign: TextAlign.center,
-              overflow: TextOverflow.ellipsis,
-              maxLines: 1,
-            ),
-          ],
-          SizedBox(height: 4.h),
-          Text(
-            label,
-            style: TextUtils.setTextStyle(
-              fontSize: 11.sp, // Reduced a bit to prevent overflow
-              color: Colors.grey[600],
-              fontWeight: FontWeight.w500,
-            ),
-            textAlign: TextAlign.center,
-            overflow: TextOverflow.ellipsis,
-            maxLines: 2,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 String _getTranslatedPlayerPosition(String position) {
   return PlayerPositionTranslation.translatePosition(position);
 }
 
-/// ================== PLAYERS VIEW (Teammates) - Unchanged ==================
+/// ================== PLAYERS VIEW (Teammates) ==================
 class PlayersView extends StatefulWidget {
   final int playerId;
   final Color playerNameTextColor;
@@ -838,6 +1503,7 @@ class _TeammatesViewState extends State<PlayersView> {
   }
 
   Widget _buildSquadSection(SquadModel squad) {
+    final scheme = Theme.of(context).colorScheme;
     final List<PlayerName> allPlayers = [
       ...squad.goalKeepers,
       ...squad.defenders,
@@ -877,15 +1543,25 @@ class _TeammatesViewState extends State<PlayersView> {
 
     return Container(
       margin: EdgeInsets.symmetric(vertical: 8.h),
-      padding: EdgeInsets.all(10.w),
+      padding: EdgeInsets.all(12.w),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(20.r),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            scheme.surface.withOpacity(0.96),
+            scheme.surfaceVariant.withOpacity(0.85),
+          ],
+        ),
+        border: Border.all(
+          color: scheme.outlineVariant.withOpacity(0.22),
+        ),
         boxShadow: [
           BoxShadow(
-            color: Theme.of(context).colorScheme.shadow.withOpacity(0.08),
-            blurRadius: 6,
-            offset: const Offset(0, 3),
+            color: scheme.shadow.withOpacity(0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
@@ -894,26 +1570,42 @@ class _TeammatesViewState extends State<PlayersView> {
         children: [
           Row(
             children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: CachedNetworkImage(
-                  imageUrl: getSafeTeamLogo(primaryLogo, squad.team.id),
-                  width: 26.w,
-                  height: 26.h,
-                  fit: BoxFit.contain,
-                  placeholder: (_, __) => Padding(
-                    padding: EdgeInsets.all(6.w),
-                    child: const CircularProgressIndicator(strokeWidth: 2),
+              Container(
+                width: 34.w,
+                height: 34.w,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    colors: [
+                      scheme.primary.withOpacity(0.6),
+                      scheme.tertiary.withOpacity(0.6),
+                    ],
                   ),
-                  errorWidget: (_, __, ___) =>
-                      Image.asset('assets/club-icon.png', fit: BoxFit.contain),
+                ),
+                child: Padding(
+                  padding: EdgeInsets.all(3.w),
+                  child: ClipOval(
+                    child: CachedNetworkImage(
+                      imageUrl: getSafeTeamLogo(primaryLogo, squad.team.id),
+                      fit: BoxFit.contain,
+                      placeholder: (_, __) => Padding(
+                        padding: EdgeInsets.all(6.w),
+                        child: const CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      errorWidget: (_, __, ___) =>
+                          Image.asset('assets/club-icon.png', fit: BoxFit.contain),
+                    ),
+                  ),
                 ),
               ),
-              SizedBox(width: 12.w),
+              SizedBox(width: 10.w),
               Expanded(
                 child: Text(
                   teamName,
-                  style: TextUtils.setTextStyle(fontSize: 14.sp),
+                  style: TextUtils.setTextStyle(
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w700,
+                  ),
                   maxLines: 1,
                   textAlign: TextAlign.center,
                   overflow: TextOverflow.ellipsis,
@@ -923,7 +1615,7 @@ class _TeammatesViewState extends State<PlayersView> {
           ),
           SizedBox(height: 10.h),
           SizedBox(
-            height: 120.h,
+            height: 130.h,
             child: SquadList(
               header: '',
               players: allPlayers,

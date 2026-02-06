@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../../../../constants/text_utils.dart';
 
 /// Used for personal info (Name, Age, Height, Weight, Country, etc.)
@@ -16,36 +15,54 @@ class PlayerDetailRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final String displayValue =
         value.trim() == 'null' || value.isEmpty ? '-' : value;
 
-    return Column(
-      children: [
-        Text(
-          label,
-          textAlign: TextAlign.center,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: TextUtils.setTextStyle(
-            fontSize: 13.sp,
-            fontWeight: FontWeight.w500,
-            color: Colors.grey.shade600,
-          ),
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16.r),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            scheme.surface.withOpacity(0.95),
+            scheme.surfaceVariant.withOpacity(0.85),
+          ],
         ),
-        SizedBox(height: 10.h),
-        Text(
-          displayValue,
-          textAlign: TextAlign.center,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: TextUtils.setTextStyle(
-            fontSize: 22.sp,
-            fontWeight: FontWeight.w800,
-            color: Theme.of(context).colorScheme.onSurface,
-            letterSpacing: -0.5,
-          ),
+        border: Border.all(
+          color: scheme.outlineVariant.withOpacity(0.25),
         ),
-      ],
+      ),
+      child: Column(
+        children: [
+          Text(
+            displayValue,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextUtils.setTextStyle(
+              fontSize: 20.sp,
+              fontWeight: FontWeight.w800,
+              color: scheme.onSurface,
+              letterSpacing: -0.3,
+            ),
+          ),
+          SizedBox(height: 6.h),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextUtils.setTextStyle(
+              fontSize: 11.sp,
+              fontWeight: FontWeight.w600,
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -63,11 +80,17 @@ class Player_league_performanceDetailRow1 extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final String displayValue =
         value.trim() == 'null' || value.isEmpty ? '-' : value;
 
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 6.h),
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 10.h),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14.r),
+        color: scheme.surface.withOpacity(0.9),
+        border: Border.all(color: scheme.outlineVariant.withOpacity(0.25)),
+      ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -76,10 +99,10 @@ class Player_league_performanceDetailRow1 extends StatelessWidget {
             maxLines: 1,
             textAlign: TextAlign.center,
             overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.abel(
-              fontSize: 22.sp,
-              fontWeight: FontWeight.w700,
-              color: Theme.of(context).colorScheme.onSurface,
+            style: TextUtils.setTextStyle(
+              fontSize: 18.sp,
+              fontWeight: FontWeight.w800,
+              color: scheme.onSurface,
             ),
           ),
           SizedBox(height: 4.h),
@@ -89,9 +112,9 @@ class Player_league_performanceDetailRow1 extends StatelessWidget {
             textAlign: TextAlign.center,
             overflow: TextOverflow.fade,
             style: TextUtils.setTextStyle(
-              fontSize: 11.sp,
-              fontWeight: FontWeight.w500,
-              color: Colors.grey.shade600,
+              fontSize: 10.sp,
+              fontWeight: FontWeight.w600,
+              color: scheme.onSurfaceVariant,
             ),
           ),
         ],
@@ -123,6 +146,7 @@ class Player_stat_lists_DetailColumn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final String displayValue =
         value.trim() == 'null' || value.isEmpty ? '-' : value;
 
@@ -143,9 +167,9 @@ class Player_stat_lists_DetailColumn extends StatelessWidget {
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: TextUtils.setTextStyle(
-                fontSize: 13.sp,
-                fontWeight: FontWeight.w500,
-                color: Colors.grey.shade700,
+                fontSize: 12.sp,
+                fontWeight: FontWeight.w600,
+                color: scheme.onSurfaceVariant,
               ),
             ),
           ),
@@ -174,19 +198,27 @@ class Player_stat_lists_DetailColumn extends StatelessWidget {
                 alignment: Alignment.centerLeft,
                 children: [
                   Container(
-                    height: 26.h,
+                    height: 24.h,
                     decoration: BoxDecoration(
-                      color: progressColor.withOpacity(0.18),
-                      borderRadius: BorderRadius.circular(10.r),
+                      color: progressColor.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(12.r),
+                      border: Border.all(
+                        color: progressColor.withOpacity(0.2),
+                      ),
                     ),
                   ),
                   FractionallySizedBox(
                     widthFactor: progress,
                     child: Container(
-                      height: 26.h,
+                      height: 24.h,
                       decoration: BoxDecoration(
-                        color: progressColor,
-                        borderRadius: BorderRadius.circular(10.r),
+                        gradient: LinearGradient(
+                          colors: [
+                            progressColor,
+                            progressColor.withOpacity(0.7),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(12.r),
                       ),
                     ),
                   ),
@@ -196,7 +228,7 @@ class Player_stat_lists_DetailColumn extends StatelessWidget {
                       child: Text(
                         '${(progress * 100).toInt()}%',
                         style: TextStyle(
-                          fontSize: 11.sp,
+                          fontSize: 10.sp,
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
                           shadows: const [

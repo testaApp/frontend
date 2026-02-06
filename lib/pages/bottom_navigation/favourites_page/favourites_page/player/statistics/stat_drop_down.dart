@@ -26,6 +26,7 @@ class PlayerstatDropdown extends StatefulWidget {
 class _PlayerstatDropdownState extends State<PlayerstatDropdown> {
   late List<String> leaguePhotos;
   late List<String> teamPics;
+  late List<String> leagueNames;
   late List<String> teamNames;
 
   @override
@@ -34,9 +35,10 @@ class _PlayerstatDropdownState extends State<PlayerstatDropdown> {
     leaguePhotos =
         widget.playerStats.map((stat) => stat.leaguePhoto ?? '').toList();
     teamPics = widget.playerStats.map((stat) => stat.teamPhoto ?? '').toList();
-    teamNames = widget.playerStats
-        .map((stat) => _getLocalizedLeagueName(stat))
-        .toList();
+    leagueNames =
+        widget.playerStats.map((stat) => _getLocalizedLeagueName(stat)).toList();
+    teamNames =
+        widget.playerStats.map((stat) => _getLocalizedTeamName(stat)).toList();
   }
 
   String _getLocalizedLeagueName(PlayerStatistics stat) {
@@ -54,14 +56,28 @@ class _PlayerstatDropdownState extends State<PlayerstatDropdown> {
     }
   }
 
-  void onChanged(String? newValue) {
-    if (newValue != null) {
-      widget.setIndex(teamNames.indexOf(newValue));
+  String _getLocalizedTeamName(PlayerStatistics stat) {
+    final deviceLanguage = localLanguageNotifier.value;
+    switch (deviceLanguage) {
+      case 'am':
+        return stat.amharicTeamName ?? stat.englishTeamName ?? '';
+      case 'or':
+        return stat.oromoTeamName ?? stat.englishTeamName ?? '';
+      case 'si':
+        return stat.somaliTeamName ?? stat.englishTeamName ?? '';
+      default:
+        return stat.englishTeamName ?? '';
     }
+  }
+
+  void onChanged(String? newValue) {
+    if (newValue != null) widget.setIndex(leagueNames.indexOf(newValue));
   }
 
   @override
   Widget build(BuildContext context) {
+    final title = leagueNames[widget.index];
+    final subtitle = teamNames[widget.index];
     return DropdownButtonHideUnderline(
       child: DropdownButton2<String>(
         enableFeedback: true,
@@ -96,18 +112,37 @@ class _PlayerstatDropdownState extends State<PlayerstatDropdown> {
               width: 5.w,
             ),
             Expanded(
-              child: Text(
-                teamNames[widget.index] ?? '',
-                style: TextUtils.setTextStyle(
-                  color: Theme.of(context).colorScheme.onSurface,
-                  fontSize: 14.sp,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    style: TextUtils.setTextStyle(
+                      color: Theme.of(context).colorScheme.onSurface,
+                      fontSize: 14.sp,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (subtitle.isNotEmpty)
+                    Text(
+                      subtitle,
+                      style: TextUtils.setTextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        fontSize: 11.sp,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                ],
               ),
             ),
           ],
         ),
         isExpanded: true,
-        items: teamNames
+        items: leagueNames
             .map<DropdownMenuItem<String>>(
               (value) => DropdownMenuItem<String>(
                   value: value,
@@ -121,7 +156,7 @@ class _PlayerstatDropdownState extends State<PlayerstatDropdown> {
                         width: 15.w,
                         child: CachedNetworkImage(
                             imageUrl:
-                                leaguePhotos[teamNames.indexOf(value)] ?? '',
+                                leaguePhotos[leagueNames.indexOf(value)] ?? '',
                             errorWidget: (context, url, error) => Container()),
                       ),
                       SizedBox(
@@ -130,19 +165,42 @@ class _PlayerstatDropdownState extends State<PlayerstatDropdown> {
                       SizedBox(
                         width: 15.w,
                         child: CachedNetworkImage(
-                            imageUrl: teamPics[teamNames.indexOf(value)] ?? '',
+                            imageUrl: teamPics[leagueNames.indexOf(value)] ??
+                                '',
                             errorWidget: (context, url, error) => Container()),
                       ),
                       SizedBox(
                         width: 5.w,
                       ),
                       Expanded(
-                        child: Text(
-                          value,
-                          style: TextUtils.setTextStyle(
-                            color: Theme.of(context).colorScheme.onSurface,
-                            fontSize: 14.sp,
-                          ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              value,
+                              style: TextUtils.setTextStyle(
+                                color: Theme.of(context).colorScheme.onSurface,
+                                fontSize: 14.sp,
+                                fontWeight: FontWeight.w700,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            if (teamNames[leagueNames.indexOf(value)]
+                                .isNotEmpty)
+                              Text(
+                                teamNames[leagueNames.indexOf(value)],
+                                style: TextUtils.setTextStyle(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
+                                  fontSize: 11.sp,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                          ],
                         ),
                       ),
                     ],

@@ -635,14 +635,43 @@ class NewsBloc extends Bloc<NewsEvent, NewsState> {
         page: state.trendingCurrentPage,
       );
 
+      if (response.isEmpty) {
+        final cachedTrendingNews =
+            await NewsCacheManager().getTrendingNewsCache();
+
+        if (cachedTrendingNews != null && cachedTrendingNews.isNotEmpty) {
+          emit(state.copyWith(
+              trendingNews: cachedTrendingNews,
+              trendingNewsStatus: NewsRequest.requestSuccess,
+              trendingCurrentPage: 1));
+        } else {
+          emit(state.copyWith(
+              trendingNewsStatus: NewsRequest.requestFailure,
+              trendingCurrentPage: state.trendingCurrentPage));
+        }
+        return;
+      }
+
+      await NewsCacheManager().cacheTrendingNews(response);
+
       emit(state.copyWith(
           trendingNews: response,
           trendingNewsStatus: NewsRequest.requestSuccess,
           trendingCurrentPage: state.trendingCurrentPage + 1));
     } catch (e) {
-      emit(state.copyWith(
-          trendingNewsStatus: NewsRequest.requestFailure,
-          trendingCurrentPage: state.trendingCurrentPage));
+      final cachedTrendingNews =
+          await NewsCacheManager().getTrendingNewsCache();
+
+      if (cachedTrendingNews != null && cachedTrendingNews.isNotEmpty) {
+        emit(state.copyWith(
+            trendingNews: cachedTrendingNews,
+            trendingNewsStatus: NewsRequest.requestSuccess,
+            trendingCurrentPage: 1));
+      } else {
+        emit(state.copyWith(
+            trendingNewsStatus: NewsRequest.requestFailure,
+            trendingCurrentPage: state.trendingCurrentPage));
+      }
     }
   }
 
