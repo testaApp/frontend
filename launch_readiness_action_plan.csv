@@ -1,0 +1,33 @@
+﻿id,priority,category,issue,evidence,recommended_action,effort_days,target_phase,status
+1,P0,Security,Local HTTP base URL,"lib/core/network/baseUrl.dart:4","Use environment-specific HTTPS base URLs; remove LAN URL from release config",1,Week1,Open
+2,P0,Security,Cleartext traffic enabled,"android/app/src/main/AndroidManifest.xml:22","Disable cleartext for release builds",1,Week1,Open
+3,P0,Security,Legacy storage mode enabled,"android/app/src/main/AndroidManifest.xml:25","Remove requestLegacyExternalStorage unless strictly required",1,Week1,Open
+4,P0,Privacy,Broad device fingerprint collection,"lib/features/onboarding/pages/device_info.dart:24-91","Add explicit consent gate and data minimization",2,Week1,Open
+5,P0,Privacy,IP geolocation over HTTP,"lib/features/onboarding/pages/device_info.dart:138","Use secure endpoint only or remove this collection",1,Week1,Open
+6,P0,Security,Sensitive token logging,"lib/Homepage.dart:91; lib/services/fcm_service.dart:443,480","Remove token logs; add sanitized logger",1,Week1,Open
+7,P0,Security,Payment internals logged,"lib/features/payment/pages/chapa_payment.dart:95,141-153","Remove payment response/body logs in production",1,Week1,Open
+8,P0,Reliability,Mutable Equatable state,"lib/state/bloc/standings/bloc/content_state.dart:100+","Make all state fields final and immutable",2,Week1,Open
+9,P0,Reliability,Incomplete Equatable props,"lib/state/bloc/standings/bloc/content_state.dart:184-189","Include all equality-relevant fields in props",1,Week1,Open
+10,P0,Reliability,Unsafe BLoC emit usage,"lib/state/bloc/quiz_bloc/quiz_bloc.dart:93","Dispatch timer tick event instead of direct emit",1,Week1,Open
+11,P0,Reliability,Forced route casts and null asserts,"lib/components/routes.dart:198,229,230","Validate extras/query params; add fallback routes",1,Week1,Open
+12,P0,Completeness,Twitter auth not configured,"lib/features/auth/services/oauth_config.dart:2-5","Configure provider or hide button until ready",1,Week1,Open
+13,P0,Completeness,Payment success TODO,"lib/features/payment/pages/chapa_payment.dart:164","Implement subscription status update transactionally",2,Week1,Open
+14,P0,Completeness,Contact actions are TODO stubs,"lib/features/navigation/pages/navigation_draw.dart:347+","Implement actions or remove entries",1,Week1,Open
+15,P1,CodeQuality,BuildContext across async gaps,"analyze_latest.txt USE_BUILD_CONTEXT_SYNCHRONOUSLY=29","Refactor async flows and mounted checks",3,Week2,Open
+16,P1,CodeQuality,Deprecated API usage,"analyze_latest.txt DEPRECATED_MEMBER_USE=681","Replace deprecated APIs in shared theme/widgets first",4,Week2,Open
+17,P1,CodeQuality,Excessive print/debug logs,"analyze_latest.txt AVOID_PRINT=228","Migrate to structured logger with levels",2,Week2,Open
+18,P1,Localization,Hardcoded UI strings,"videointro.dart:185; error_view.dart:34; horizontal_scroll_for_you.dart:209","Move all strings into localization resources",2,Week2,Open
+19,P1,Architecture,Monolithic files are large,"lib/main.dart=719; lib/services/fcm_service.dart=1218","Split by feature/services to reduce blast radius",4,Week2,Open
+20,P1,Architecture,Mixed navigation patterns,"GoRouter plus direct MaterialPageRoute calls","Standardize navigation approach",2,Week2,Open
+21,P1,Architecture,Multiple theme providers,"theme_provider.dart and themeprovider.dart","Consolidate into one source of truth",1,Week2,Open
+22,P1,Tooling,Analyzer quality gate failing,"flutter analyze --no-pub => 2913 issues","Create phased cleanup with fail-on-new-issues policy",3,Week2,Open
+23,P1,Tooling,Dependency lint for bloc package,"analyze_latest.txt DEPEND_ON_REFERENCED_PACKAGES=45","Add direct dependency or adjust imports",1,Week2,Open
+24,P1,Tooling,Naming/style inconsistency,"FILE_NAMES=81; NON_CONSTANT_IDENTIFIER_NAMES=378","Apply naming conventions incrementally by module",4,Week3,Open
+25,P1,Testing,No test directory,"project scan","Add unit tests for repositories and blocs",3,Week2,Open
+26,P1,Testing,No widget tests for key flows,"project scan","Add widget tests for onboarding/auth/error states",3,Week2,Open
+27,P1,CI,No CI workflows,"project scan: no .github/workflows","Add CI for analyze, test, build",1,Week2,Open
+28,P2,Docs,README is template,"README.md:1-16","Write production README with setup/env/architecture",1,Week3,Open
+29,P2,Docs,Generic pubspec metadata,"pubspec.yaml:1-2","Update app name/description metadata",0.5,Week3,Open
+30,P2,Platform,iOS target missing (if required),"project scan: ios folder missing","Initialize and configure iOS only if launch plan requires",2,Week4,Open
+31,P2,Compliance,Policy docs not visible in repo,"repo scan no privacy/terms files","Ensure policy URLs and legal docs are prepared for store listing",1,Week3,Open
+32,P2,Operations,Crash monitoring not integrated,"no crashlytics/sentry refs found","Add crash reporting and alerting before wide rollout",1,Week3,Open

@@ -13,6 +13,30 @@ subprojects {
 
 subprojects {
     project.evaluationDependsOn(':app')
+
+    // Some third-party Android plugins still declare Java 8 source/target.
+    // Normalize to Java 17 and suppress obsolete option warnings on newer JDKs.
+    plugins.withId("com.android.application") {
+        android {
+            compileOptions {
+                sourceCompatibility JavaVersion.VERSION_17
+                targetCompatibility JavaVersion.VERSION_17
+            }
+        }
+    }
+
+    plugins.withId("com.android.library") {
+        android {
+            compileOptions {
+                sourceCompatibility JavaVersion.VERSION_17
+                targetCompatibility JavaVersion.VERSION_17
+            }
+        }
+    }
+
+    tasks.withType(JavaCompile).configureEach {
+        options.compilerArgs.add("-Xlint:-options")
+    }
 }
 
 tasks.register("clean", Delete) {
