@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import '../../../../components/dominant_color_generator.dart';
-import '../../pages/constants/text_utils.dart';
+import 'package:blogapp/shared/constants/text_utils.dart';
 
 class FavPlayerContainer extends StatefulWidget {
   final String? imageUrl;

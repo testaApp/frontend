@@ -2,7 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:palette_generator/palette_generator.dart';
 
-import '../pages/constants/colors.dart';
+import 'package:blogapp/shared/constants/colors.dart';
 
 Future<Color> generateDominantColor({required String? imageUrl}) async {
   final PaletteGenerator paletteGenerator =

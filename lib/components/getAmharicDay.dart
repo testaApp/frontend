@@ -1,16 +1,15 @@
-// Update your imports
-import 'package:ethiopian_calendar_plus/converters.dart';
-import 'package:ethiopian_calendar_plus/ethiopian_date.dart';
+import 'package:abushakir/abushakir.dart';
 import '../localization/demo_localization.dart';
 
 Map<String, dynamic> getAmharicDayFromGC(String dateTime) {
   try {
     DateTime date = DateTime.parse(dateTime);
-    
-    // 1. Convert using the new package method
-    EthiopianDate ethiopianDate = EthiopianDateConverter.gregorianToEthiopian(date);
+    // Use midday timestamp to ensure the conversion reflects the Gregorian local day correctly
+    // and avoids edge cases near midnight or timezone boundaries.
+    EtDatetime ethiopianDate = EtDatetime.fromMillisecondsSinceEpoch(
+      date.add(const Duration(hours: 12)).millisecondsSinceEpoch,
+    );
 
-    // 2. Map the result to your existing structure
     Map<String, dynamic> value = {
       'year': ethiopianDate.year,
       'month': ethiopianDate.month,
@@ -37,29 +36,22 @@ Map<String, dynamic> getAmharicDayFromGC(String dateTime) {
   }
 }
 
+// Actual Ethiopian month names in Amharic
+const List<String> ethiopianMonthNames = [
+  'መስከረም', 'ጥቅምት', 'ህዳር', 'ታህሳስ', 'ጥር', 'የካቲት', 'መጋቢት', 'ሚያዝያ', 'ግንቦት', 'ሰኔ', 'ሐምሌ', 'ነሐሴ', 'ጳጉሜ'
+];
+
 String getAmharicMonthName(String dateTime) {
   try {
     DateTime date = DateTime.parse(dateTime);
-    EthiopianDate ethiopianDate = EthiopianDateConverter.gregorianToEthiopian(date);
+    // Use midday timestamp to ensure the conversion reflects the Gregorian local day correctly
+    EtDatetime ethiopianDate = EtDatetime.fromMillisecondsSinceEpoch(
+      date.add(const Duration(hours: 12)).millisecondsSinceEpoch,
+    );
 
-    List<String> months = [
-      DemoLocalizations.september, // Meskerem
-      DemoLocalizations.october,   // Tikimt
-      DemoLocalizations.november,  // Hidar
-      DemoLocalizations.december,  // Tahsas
-      DemoLocalizations.january,   // Ter
-      DemoLocalizations.february,  // Yekatit
-      DemoLocalizations.march,     // Megabit
-      DemoLocalizations.april,     // Miyazia
-      DemoLocalizations.may,       // Ginbot
-      DemoLocalizations.june,      // Sene
-      DemoLocalizations.july,      // Hamle
-      DemoLocalizations.august,    // Nehase
-      DemoLocalizations.pagume,    // Pagume
-    ];
-
-    String month = months[ethiopianDate.month - 1];
-    String monthShort = month.length > 3 ? month.substring(0, 3) : month;
+    String month = ethiopianMonthNames[ethiopianDate.month - 1];
+    // Shorten to first 2 characters for better fit in horizontal list (e.g., መስከረም -> መስ, የካቲት -> የካ)
+    String monthShort = month.length > 2 ? month.substring(0, 2) : month;
     
     return "$monthShort ${ethiopianDate.day}";
   } catch (e) {
@@ -73,34 +65,20 @@ String getAmharicStringDay(String dateTime) {
   if (dateData.isEmpty) return '';
 
   String dayName = dateData['dayName'].toString();
-  if (dayName.length > 3) dayName = dayName.substring(0, 3);
+  // Shorten day name (e.g., ሰኞ -> ሰኞ, ማክሰኞ -> ማክ)
+  if (dayName.length > 2) dayName = dayName.substring(0, 2);
 
   String monthAndDate = getAmharicMonthName(dateTime);
   return '$dayName $monthAndDate';
 }
+
 // Fixed version of getAmharicSubstDate
 String getAmharicSubstDate(String dateTime) {
   Map<String, dynamic> dateData = getAmharicDayFromGC(dateTime);
   if (dateData.isEmpty) return '';
 
   try {
-    List<String> months = [
-      DemoLocalizations.september, // Ethiopian Year starts in Meskerem
-      DemoLocalizations.october,
-      DemoLocalizations.november,
-      DemoLocalizations.december,
-      DemoLocalizations.january,
-      DemoLocalizations.february,
-      DemoLocalizations.march,
-      DemoLocalizations.april,
-      DemoLocalizations.may,
-      DemoLocalizations.june,
-      DemoLocalizations.july,
-      DemoLocalizations.august,
-      DemoLocalizations.pagume,
-    ];
-
-    String m = months[dateData['month'] - 1];
+    String m = ethiopianMonthNames[dateData['month'] - 1];
     String mShort = m.length > 2 ? m.substring(0, 2) : m;
 
     return "$mShort ${dateData['day']}";

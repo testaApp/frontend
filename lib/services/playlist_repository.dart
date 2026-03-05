@@ -1,4 +1,4 @@
-import '../pages/constants/links.dart';
+import 'package:blogapp/shared/constants/links.dart';
 
 abstract class PlaylistRepository {
   Future<List<Map<String, String>>> fetchInitialPlaylist();

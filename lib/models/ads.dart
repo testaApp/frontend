@@ -1,5 +1,5 @@
-import '../util/api_manager/api_manager.dart';
-import '../util/baseUrl.dart';
+import 'package:blogapp/core/network/api_manager.dart';
+import 'package:blogapp/core/network/baseUrl.dart';
 
 class Ads {
   final Map<String, String> Ad_pic;

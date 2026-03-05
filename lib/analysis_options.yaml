@@ -21,14 +21,11 @@ include: package:flutter_lints/flutter.yaml
 linter:
   rules:
     avoid_unused_constructor_parameters: true 
-    avoid_unused_local_variables: true
-    dead_code: true
     avoid_types_on_closure_parameters: true
     avoid_void_async: true
     cancel_subscriptions: true
     close_sinks: true
     directives_ordering: true
-    package_api_docs: true
     package_prefixed_library_names: true
     prefer_relative_imports: true
     prefer_single_quotes: true

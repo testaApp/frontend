@@ -1,6 +1,6 @@
 import 'package:dartz/dartz.dart';
 
-import '../../Infrastructure/teamDataProvider.dart';
+import 'package:blogapp/data/providers/teamDataProvider.dart';
 import '../core/failure.dart';
 import 'team.dart';
 

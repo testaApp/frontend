@@ -6,7 +6,6 @@ class RouteNames {
   static String teamProfilePage = 'teamProfilePage';
   static String enadamt = 'enadamt';
   static String chooselanguage = 'language';
-  static String payment = 'payment';
   static String home = 'home';
   static String podcastFav = 'podcastFav';
   static String transfer = 'transfer'; // Ensure this line exists
@@ -34,7 +33,6 @@ class RouteNames {
   static String matchespage = 'matchespage';
   static String matchDetail = 'matchDetail';
   static String videointro = 'videointro';
-  static String paymentRouteName = 'paymentwebview';
   static String entrypage = 'entrypage';
   static String detailnews = 'detailnews';
 }

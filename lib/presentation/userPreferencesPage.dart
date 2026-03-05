@@ -3,10 +3,10 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:tab_indicator_styler/tab_indicator_styler.dart';
 
 import '../localization/demo_localization.dart';
-import '../pages/bottom_navigation/favourites_page/favourites_page/player/playerTab.dart';
-import '../pages/bottom_navigation/favourites_page/team/teamTab.dart';
-import '../pages/constants/colors.dart';
-import '../pages/constants/text_utils.dart';
+import 'package:blogapp/features/favourites/pages/favourites_page/favourites_page/player/playerTab.dart';
+import 'package:blogapp/features/favourites/pages/favourites_page/team/teamTab.dart';
+import 'package:blogapp/shared/constants/colors.dart';
+import 'package:blogapp/shared/constants/text_utils.dart';
 
 class UserPreferencesPage extends StatefulWidget {
   const UserPreferencesPage({super.key});
@@ -123,6 +123,7 @@ class _UserPreferencesPageState extends State<UserPreferencesPage>
       ),
       body: TabBarView(
         controller: _tabController,
+        physics: const NeverScrollableScrollPhysics(),
         children: const [
           TeamTab(),
           PlayerTab(),

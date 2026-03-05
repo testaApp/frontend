@@ -1,6 +1,6 @@
 import 'package:dartz/dartz.dart';
 
-import '../../Infrastructure/playerPreferencesDataProvider.dart';
+import 'package:blogapp/data/providers/playerPreferencesDataProvider.dart';
 import 'PlayerPreference.dart';
 import 'PlayerPreferenceFailure.dart';
 

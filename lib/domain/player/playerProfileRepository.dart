@@ -1,6 +1,6 @@
 import 'package:dartz/dartz.dart';
 
-import '../../Infrastructure/playerProfileDataProvider.dart';
+import 'package:blogapp/data/providers/playerProfileDataProvider.dart';
 import '../core/failure.dart';
 import 'playerProfile.dart';
 

@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:app_links/app_links.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
@@ -16,94 +17,240 @@ import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:audio_service/audio_service.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-import 'application/Favourite_team/favouriteteam_bloc.dart';
-import 'application/auth/auth_bloc.dart';
-import 'application/favourite_league/favourite_league_bloc.dart';
-import 'application/favourite_player/PlayerSelection_bloc.dart';
-import 'application/favourite_player/favouriteplayer_bloc.dart';
-import 'application/following/following_bloc.dart';
-import 'application/matchdetail/fixtureEvents/events/bloc/fixtureevent_bloc.dart';
-import 'application/matchdetail/head_to_head/head_to_head_bloc.dart';
-import 'application/matchdetail/match/match_bloc.dart';
-import 'application/matchdetail/matchStatistics/match_statistics_bloc.dart';
-import 'application/persistent_player/persistent_player_bloc.dart';
-import 'application/product/product_bloc.dart';
-import 'application/provider/song_model_provider.dart';
-import 'application/scroller/scroller_bloc.dart';
-import 'application/seasons_page/seasons_page_bloc.dart';
-import 'application/set_preference/set_preference_bloc.dart';
-import 'application/team/team_bloc.dart';
-import 'application/testing/bloc/audio_bloc.dart';
-import 'application/volume_bloc/volume_bloc.dart';
+import 'package:blogapp/state/application/Favourite_team/favouriteteam_bloc.dart';
+import 'package:blogapp/state/application/auth/auth_bloc.dart';
+import 'package:blogapp/state/application/favourite_league/favourite_league_bloc.dart';
+import 'package:blogapp/state/application/favourite_player/PlayerSelection_bloc.dart';
+import 'package:blogapp/state/application/favourite_player/favouriteplayer_bloc.dart';
+import 'package:blogapp/state/application/following/following_bloc.dart';
+import 'package:blogapp/state/application/matchdetail/fixtureEvents/events/bloc/fixtureevent_bloc.dart';
+import 'package:blogapp/state/application/matchdetail/head_to_head/head_to_head_bloc.dart';
+import 'package:blogapp/state/application/matchdetail/match/match_bloc.dart';
+import 'package:blogapp/state/application/matchdetail/matchStatistics/match_statistics_bloc.dart';
+import 'package:blogapp/state/application/persistent_player/persistent_player_bloc.dart';
+import 'package:blogapp/state/application/provider/song_model_provider.dart';
+import 'package:blogapp/state/application/seasons_page/seasons_page_bloc.dart';
+import 'package:blogapp/state/application/set_preference/set_preference_bloc.dart';
+import 'package:blogapp/state/application/team/team_bloc.dart';
 import 'apptheme.dart';
-import 'bloc/availableSeasons/available_seasons_bloc.dart';
-import 'bloc/highlightTv_bloc/highlightTv_Event.dart';
-import 'bloc/highlightTv_bloc/highlightTv_bloc.dart';
-import 'bloc/knockout/Knockout_bloc.dart';
-import 'bloc/leagues_page/top_assist/top_assist_bloc.dart';
-import 'bloc/leagues_page/top_scorer/top_scorers_bloc.dart';
-import 'bloc/leagues_page/top_yellow_card/top_yellow_bloc.dart';
-import 'bloc/leagues_page/top_red/top_red_bloc.dart';
-import 'bloc/lineups/lineups_bloc.dart';
-import 'bloc/live-tv-player_bloc-state-event/video_player_bloc.dart';
-import 'bloc/live_tv/live_tv_bloc.dart';
-import 'bloc/live_tv/live_tv_event.dart';
-import 'bloc/matches_page_highlights_page/bloc/highlights_page_bloc.dart';
-import 'bloc/mirchaweche/my_fav/my_fav_player/myfavourite_players_bloc.dart';
-import 'bloc/mirchaweche/my_fav/my_fav_team/myfavouriteteams_bloc.dart';
-import 'bloc/mirchaweche/players/player_profile/player_profile_bloc.dart';
-import 'bloc/mirchaweche/players/player_teammates/teammates_bloc.dart';
-import 'bloc/mirchaweche/teams/last_five_matches/last_five_matches_bloc.dart';
-import 'bloc/mirchaweche/teams/previous&next_matchs/matches_bloc.dart';
-import 'bloc/mirchaweche/teams/team_profile_standing/team_profile_standing_bloc.dart';
-import 'bloc/mirchaweche/teams/team_profile_statistics/team_profile_statistics_bloc.dart';
-import 'bloc/news/news_bloc.dart';
-import 'bloc/payment_bloc/payment_bloc.dart';
-import 'application/enadamt/podcast/podcast_bloc.dart';
-import 'application/enadamt/podcast/podcast_event.dart';
-import 'bloc/quiz_bloc/quiz_bloc.dart';
-import 'bloc/social_media/social_media_bloc.dart';
-import 'bloc/standings/bloc/content_bloc.dart';
-import 'bloc/video/video_bloc.dart';
+import 'package:blogapp/state/bloc/availableSeasons/available_seasons_bloc.dart';
+import 'package:blogapp/state/bloc/highlightTv_bloc/highlightTv_bloc.dart';
+import 'package:blogapp/state/bloc/knockout/Knockout_bloc.dart';
+import 'package:blogapp/state/bloc/leagues_page/top_assist/top_assist_bloc.dart';
+import 'package:blogapp/state/bloc/leagues_page/top_scorer/top_scorers_bloc.dart';
+import 'package:blogapp/state/bloc/leagues_page/top_yellow_card/top_yellow_bloc.dart';
+import 'package:blogapp/state/bloc/leagues_page/top_red/top_red_bloc.dart';
+import 'package:blogapp/state/bloc/lineups/lineups_bloc.dart';
+import 'package:blogapp/state/bloc/live-tv-player_bloc-state-event/video_player_bloc.dart';
+import 'package:blogapp/state/bloc/live_tv/live_tv_bloc.dart';
+import 'package:blogapp/state/bloc/matches_page_highlights_page/bloc/highlights_page_bloc.dart';
+import 'package:blogapp/state/bloc/mirchaweche/my_fav/my_fav_player/myfavourite_players_bloc.dart';
+import 'package:blogapp/state/bloc/mirchaweche/my_fav/my_fav_team/myfavouriteteams_bloc.dart';
+import 'package:blogapp/state/bloc/mirchaweche/players/player_profile/player_profile_bloc.dart';
+import 'package:blogapp/state/bloc/mirchaweche/players/player_teammates/teammates_bloc.dart';
+import 'package:blogapp/state/bloc/mirchaweche/teams/last_five_matches/last_five_matches_bloc.dart';
+import 'package:blogapp/state/bloc/mirchaweche/teams/previous&next_matchs/matches_bloc.dart';
+import 'package:blogapp/state/bloc/mirchaweche/teams/team_profile_standing/team_profile_standing_bloc.dart';
+import 'package:blogapp/state/bloc/mirchaweche/teams/team_profile_statistics/team_profile_statistics_bloc.dart';
+import 'package:blogapp/state/bloc/news/news_bloc.dart';
+import 'package:blogapp/state/application/enadamt/podcast/podcast_bloc.dart';
+import 'package:blogapp/state/bloc/standings/bloc/content_bloc.dart';
+import 'package:blogapp/state/bloc/video/video_bloc.dart';
 import 'components/routes.dart';
-import 'domain/product/productRepository.dart';
-import 'pages/appbar_pages/enadamt/audio_handler_new.dart';
-import 'pages/navigation/quiz/quiz_repository.dart';
+import 'package:blogapp/features/enadamt/pages/enadamt/audio_handler_new.dart';
+import 'package:blogapp/features/navigation/pages/quiz/quiz_repository.dart';
 import 'services/analytics_service.dart';
 import 'services/fcm_service.dart';
 import 'services/following_storage_service.dart';
+import 'services/sync_service.dart';
 import 'services/service_locator.dart';
-import 'pages/navigation/themeprovider.dart';
-import 'util/add_to_hive.dart';
-import 'util/auth/store_info.dart';
-import 'util/auth/tokens.dart';
-import 'util/auth/firebase_auth_service.dart';
-import 'util/baseUrl.dart';
-import 'util/notifiers/username_notifier.dart';
+import 'package:blogapp/features/navigation/pages/themeprovider.dart';
+import 'package:blogapp/core/storage/add_to_hive.dart';
+import 'package:blogapp/features/auth/services/store_info.dart';
+import 'package:blogapp/features/auth/services/firebase_auth_service.dart';
+import 'package:blogapp/features/auth/services/firebase_auth_helpers.dart';
+import 'package:blogapp/core/network/baseUrl.dart';
+import 'package:blogapp/core/notifiers/username_notifier.dart';
 
 //intiate firebase analytics observer
 final FirebaseAnalytics observer = FirebaseAnalytics.instance;
-// ────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // BACKGROUND MESSAGE HANDLER (must be top-level)
-// ────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
-  debugPrint('🔔 Background message received → ${message.messageId}');
+  debugPrint('ðŸ”” Background message received â†’ ${message.messageId}');
   debugPrint('   Type: ${message.data['type']}');
   // FCM will display the notification automatically
+}
 
- }
-
-// ────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Global variables
-// ────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 late GoRouter globalRouter;
 ValueNotifier<String> localLanguageNotifier = ValueNotifier('am');
 late FollowingStorageService globalStorageService;
 late FollowingAnalyticsService globalAnalyticsService;
+Future<void>? _audioHandlerInitialization;
+const List<String> supportedLocalizationLanguages = [
+  'am',
+  'en',
+  'tr',
+  'so',
+  'or',
+];
+
+class _LocalizationNetworkMetrics {
+  int totalRequests = 0;
+  int failedRequests = 0;
+  int totalRequestBytes = 0;
+  int totalDecodedResponseBytes = 0;
+  int totalContentLengthBytes = 0;
+  int contentLengthSamples = 0;
+
+  void reset() {
+    totalRequests = 0;
+    failedRequests = 0;
+    totalRequestBytes = 0;
+    totalDecodedResponseBytes = 0;
+    totalContentLengthBytes = 0;
+    contentLengthSamples = 0;
+  }
+
+  void recordResponse({
+    required String languageCode,
+    required int statusCode,
+    required int requestBytes,
+    required int decodedResponseBytes,
+    required int? contentLengthBytes,
+  }) {
+    totalRequests++;
+    if (statusCode != 200) {
+      failedRequests++;
+    }
+    totalRequestBytes += requestBytes;
+    totalDecodedResponseBytes += decodedResponseBytes;
+    if (contentLengthBytes != null) {
+      totalContentLengthBytes += contentLengthBytes;
+      contentLengthSamples++;
+    }
+
+    final contentLengthInfo = contentLengthBytes == null
+        ? 'n/a'
+        : '${_formatBytes(contentLengthBytes)} ($contentLengthBytes B)';
+    debugPrint(
+      'ðŸŒ [Localization] $languageCode â€¢ status=$statusCode â€¢ req=${_formatBytes(requestBytes)} ($requestBytes B) '
+      'â€¢ resp(decoded)=${_formatBytes(decodedResponseBytes)} ($decodedResponseBytes B) '
+      'â€¢ resp(content-length)=$contentLengthInfo',
+    );
+  }
+
+  void recordTransportFailure({
+    required String languageCode,
+    required int requestBytes,
+    required Object error,
+  }) {
+    totalRequests++;
+    failedRequests++;
+    totalRequestBytes += requestBytes;
+
+    debugPrint(
+      'ðŸŒ [Localization] $languageCode â€¢ transport-failure=$error '
+      'â€¢ req=${_formatBytes(requestBytes)} ($requestBytes B)',
+    );
+  }
+
+  void printSummary({required String context}) {
+    debugPrint(
+      'ðŸ“Š [$context] Localization network summary: '
+      'requests=$totalRequests, failed=$failedRequests, '
+      'request=${_formatBytes(totalRequestBytes)} ($totalRequestBytes B), '
+      'response(decoded)=${_formatBytes(totalDecodedResponseBytes)} ($totalDecodedResponseBytes B), '
+      'response(content-length)=${_formatBytes(totalContentLengthBytes)} '
+      '($totalContentLengthBytes B across $contentLengthSamples responses)',
+    );
+  }
+}
+
+final _localizationNetworkMetrics = _LocalizationNetworkMetrics();
+
+String _formatBytes(int bytes) {
+  if (bytes < 1024) return '$bytes B';
+  if (bytes < 1024 * 1024) {
+    return '${(bytes / 1024).toStringAsFixed(2)} KB';
+  }
+  return '${(bytes / (1024 * 1024)).toStringAsFixed(2)} MB';
+}
+
+void resetLocalizationNetworkDebugMetrics() {
+  _localizationNetworkMetrics.reset();
+}
+
+void printLocalizationNetworkDebugSummary({
+  String context = 'Localization',
+}) {
+  _localizationNetworkMetrics.printSummary(context: context);
+}
+
+Future<void> _runStartupStep(
+  String label,
+  Future<void> Function() step, {
+  Duration timeout = const Duration(seconds: 12),
+}) async {
+  try {
+    await step().timeout(timeout);
+  } catch (error, stackTrace) {
+    debugPrint('Startup step failed [$label]: $error');
+    debugPrintStack(stackTrace: stackTrace);
+  }
+}
+
+Future<void> _initializeAudioHandlerIfNeeded() {
+  if (getIt.isRegistered<AudioHandler>()) {
+    return Future.value();
+  }
+
+  _audioHandlerInitialization ??= () async {
+    try {
+      final audioHandler = await AudioService.init(
+        builder: () => MyAudioHandler(),
+        config: const AudioServiceConfig(
+          androidNotificationChannelId: 'com.myapp.audio',
+          androidNotificationChannelName: 'Playback',
+          androidNotificationChannelDescription: 'Podcast playback controls',
+          androidNotificationOngoing: false,
+          androidStopForegroundOnPause: false,
+          preloadArtwork: true,
+        ),
+      );
+
+      if (!getIt.isRegistered<AudioHandler>()) {
+        getIt.registerSingleton<AudioHandler>(audioHandler);
+      }
+    } catch (error) {
+      _audioHandlerInitialization = null;
+      rethrow;
+    }
+  }();
+
+  return _audioHandlerInitialization!;
+}
+
+Future<void> _runPostLoginStartupSync(String languageCode) async {
+  final following =
+      await syncFollowingDataAfterLogin(storageService: globalStorageService);
+  await enableAllNotificationPrefs();
+  await ensureBreakingNewsSubscription();
+  await resubscribeUserTopics(
+    matchIds: following.matchIds,
+    podcastIds: following.podcastIds,
+    languageCode: languageCode,
+  );
+}
+
+Future<void> ensureAudioHandlerReady() => _initializeAudioHandlerIfNeeded();
 
 Future<void> deleteLogin() async {
   final prefs = await SharedPreferences.getInstance();
@@ -117,41 +264,109 @@ Future<void> deleteLogin() async {
 
   // 3. Clear local storage
   await prefs.clear();
-  await clearTokens();
+  await signOutToAnonymous();
 
-  debugPrint('User logged out → Analytics ID cleared & FCM topics cleaned up');
+  debugPrint(
+      'User logged out â†’ Analytics ID cleared & FCM topics cleaned up');
   // 4. Clear Following Storage
   await globalStorageService.clearAll();
-debugPrint('✅ Following storage cleared on logout');
+  debugPrint('âœ… Following storage cleared on logout');
 }
 
-Future<void> fetchLocalizationValues(String languageCode) async {
-  final box1 = await Hive.openBox<LocalizationData>('localization');
+Future<Box<LocalizationData>> _getLocalizationBox() async {
+  if (Hive.isBoxOpen('localization')) {
+    return Hive.box<LocalizationData>('localization');
+  }
+
+  return Hive.openBox<LocalizationData>('localization');
+}
+
+Future<void> fetchLocalizationValues(
+  String languageCode, {
+  Box<LocalizationData>? box,
+  Duration timeout = const Duration(seconds: 15),
+}) async {
+  final localizationBox = box ?? await _getLocalizationBox();
   final url = BaseUrl().url;
-  final response = await http.get(
-    Uri.parse('$url/api/localization?languageCode=$languageCode'),
+  final uri = Uri.parse('$url/api/localization?languageCode=$languageCode');
+  final requestBytes = utf8.encode(uri.toString()).length;
+  late final http.Response response;
+
+  try {
+    response = await http.get(uri).timeout(timeout);
+  } catch (error) {
+    _localizationNetworkMetrics.recordTransportFailure(
+      languageCode: languageCode,
+      requestBytes: requestBytes,
+      error: error,
+    );
+    rethrow;
+  }
+
+  final contentLengthBytes =
+      int.tryParse(response.headers['content-length'] ?? '');
+  _localizationNetworkMetrics.recordResponse(
+    languageCode: languageCode,
+    statusCode: response.statusCode,
+    requestBytes: requestBytes,
+    decodedResponseBytes: response.bodyBytes.length,
+    contentLengthBytes: contentLengthBytes,
   );
 
-  if (response.statusCode == 200) {
-    final Map<String, dynamic> data = json.decode(response.body);
-    final Map<String, String> localizedValues =
-        data.map((key, value) => MapEntry(key, value.toString()));
+  if (response.statusCode != 200) {
+    throw HttpException(
+      'Localization request failed for "$languageCode": ${response.statusCode}',
+    );
+  }
 
-    for (final entry in localizedValues.entries) {
-      final localizationData =
-          LocalizationData(key: entry.key, value: entry.value);
-      await box1.put('$languageCode-${entry.key}', localizationData);
-    }
+  final decodedBody = json.decode(response.body);
+  if (decodedBody is! Map<String, dynamic>) {
+    throw const FormatException('Unexpected localization payload format');
+  }
+
+  final localizedEntries = <String, LocalizationData>{};
+  decodedBody.forEach((key, value) {
+    final normalizedKey = key.toString();
+    localizedEntries['$languageCode-$normalizedKey'] = LocalizationData(
+      key: normalizedKey,
+      value: value.toString(),
+    );
+  });
+
+  if (localizedEntries.isNotEmpty) {
+    await localizationBox.putAll(localizedEntries);
   }
 }
 
 Future<void> preloadLocalizations() async {
+  final localizationBox = await _getLocalizationBox();
   await Future.wait([
-    fetchLocalizationValues('am'),
-    fetchLocalizationValues('en'),
-    fetchLocalizationValues('tr'),
-    fetchLocalizationValues('so'),
-    fetchLocalizationValues('or'),
+    for (final languageCode in supportedLocalizationLanguages)
+      fetchLocalizationValues(languageCode, box: localizationBox),
+  ]);
+}
+
+Future<void> preloadLocalizationsPrioritized({
+  required String primaryLanguageCode,
+  Duration deferredDelay = const Duration(seconds: 2),
+}) async {
+  final localizationBox = await _getLocalizationBox();
+  final normalizedPrimary =
+      supportedLocalizationLanguages.contains(primaryLanguageCode)
+          ? primaryLanguageCode
+          : supportedLocalizationLanguages.first;
+
+  await fetchLocalizationValues(
+    normalizedPrimary,
+    box: localizationBox,
+  );
+
+  await Future.delayed(deferredDelay);
+
+  await Future.wait([
+    for (final languageCode in supportedLocalizationLanguages)
+      if (languageCode != normalizedPrimary)
+        fetchLocalizationValues(languageCode, box: localizationBox),
   ]);
 }
 
@@ -161,57 +376,98 @@ Future<void> main() async {
 
   await Firebase.initializeApp();
 
- // ─── NEW: Silent anonymous sign-in ───────────────────────────────────────
- await FirebaseAuthService.initializeAnonymousAuth();
- 
-  // ✅ Initialize Awesome Notifications FIRST
-  await FCMService.initializeAwesomeNotifications();
+  await Future.wait([
+    _runStartupStep(
+      'anonymous_auth',
+      FirebaseAuthService.initializeAnonymousAuth,
+      timeout: const Duration(seconds: 20),
+    ),
+    _runStartupStep('hive_init', Hive.initFlutter),
+    _runStartupStep(
+      'system_ui',
+      () => SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge),
+    ),
+    _runStartupStep(
+      'awesome_notifications',
+      FCMService.initializeAwesomeNotifications,
+    ),
+  ]);
 
-  // Initialize FCM service
-  await FCMService().initialize();
-  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-
-
-  await setupServiceLocator();
-
-  final audioHandler = await AudioService.init(
-    builder: () => MyAudioHandler(),
-    config: const AudioServiceConfig(
-      androidNotificationChannelId: 'com.myapp.audio',
-      androidNotificationChannelName: 'Playback',
-      androidNotificationChannelDescription: 'Podcast playback controls',
-      androidNotificationOngoing: false,
-      androidStopForegroundOnPause: false,
-      preloadArtwork: true,
+  // Do not block first frame on audio setup; warm it up in background.
+  unawaited(
+    _runStartupStep(
+      'audio_handler',
+      ensureAudioHandlerReady,
+      timeout: const Duration(seconds: 10),
     ),
   );
-  getIt.registerSingleton<AudioHandler>(audioHandler);
+  await _runStartupStep('service_locator', setupServiceLocator);
 
-  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  ErrorWidget.builder = (errorDetails) => ColoredBox(
+        color: const Color(0xFF111111),
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text(
+              'Something went wrong.\n${errorDetails.exceptionAsString()}',
+              style: const TextStyle(color: Colors.white),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      );
 
-  ErrorWidget.builder = (errorDetails) => const Text('');
-
-  await Hive.initFlutter();
   globalStorageService = FollowingStorageService();
-await globalStorageService.init();
-debugPrint('✅ Following Storage Service initialized');
+  await Future.wait([
+    _runStartupStep('fcm_service_init', () => FCMService().initialize()),
+    _runStartupStep('following_storage_init', globalStorageService.init),
+  ]);
+  debugPrint('âœ… Following Storage Service initialized');
 
-globalAnalyticsService = FollowingAnalyticsService();
-debugPrint('✅ Following Analytics Service initialized');
-  Hive.registerAdapter(LocalizationDataAdapter());
+  if (!Hive.isAdapterRegistered(0)) {
+    Hive.registerAdapter(LocalizationDataAdapter());
+  }
+
+  final prefsFuture = SharedPreferences.getInstance();
+
+  final currentUser = FirebaseAuth.instance.currentUser;
+  final isLoggedIn = currentUser != null && !currentUser.isAnonymous;
+  final shouldSkipOnboarding = isLoggedIn;
+
+  globalAnalyticsService = FollowingAnalyticsService();
+  debugPrint('âœ… Following Analytics Service initialized');
   var box = await Hive.openBox('settings');
   localLanguageNotifier.value = box.get('language', defaultValue: 'am');
 
-  String? name = await getInformation(key: 'name');
-  String? phoneNumber = await getInformation(key: 'phoneNumber');
+  unawaited(
+    (() async {
+      final name = await getInformation(key: 'name');
+      final phoneNumber = await getInformation(key: 'phoneNumber');
+      userNameNotifier.value = name;
+      phonenumberNotifier.value = phoneNumber;
+    })()
+        .catchError((error, stackTrace) {
+      debugPrint('User profile bootstrap load failed: $error');
+    }),
+  );
 
-  userNameNotifier.value = name;
-  phonenumberNotifier.value = phoneNumber;
-
-  String initLocation = await checkLoggedIn() ? '/entrypage' : '/videointro';
-  if (initLocation != '/videointro') {
-    unawaited(preloadLocalizations());
+  final prefs = await prefsFuture;
+  if (shouldSkipOnboarding) {
+    await prefs.setBool('setup_done', true);
+    unawaited(
+      _runPostLoginStartupSync(localLanguageNotifier.value)
+          .catchError((error, stackTrace) {
+        debugPrint('Post-login startup sync failed: $error');
+      }),
+    );
   }
+  final setupDone = prefs.getBool('setup_done') ?? false;
+  String initLocation = setupDone ? '/entrypage' : '/videointro';
+  final initialNotificationRoute = await FCMService.consumeInitialLaunchRoute();
+  if (initialNotificationRoute != null && initialNotificationRoute.isNotEmpty) {
+    initLocation = initialNotificationRoute;
+  }
+  debugPrint('Resolved initial route: $initLocation');
 
   globalRouter = createRoute(initLocation);
 
@@ -223,40 +479,25 @@ debugPrint('✅ Following Analytics Service initialized');
       MultiProvider(
         providers: [
           RepositoryProvider<QuizRepository>(
-            create: (context) => QuizRepository(
-              secureStorage: const FlutterSecureStorage(
-                aOptions: AndroidOptions(encryptedSharedPreferences: true),
-                iOptions: IOSOptions(),
-              ),
-            ),
+            create: (context) => QuizRepository(),
           ),
-          
           BlocProvider(create: (context) => PersistentPlayerBloc()),
           BlocProvider<TeamBloc>(create: (context) => TeamBloc()),
-          BlocProvider<AudioBloc>(create: (context) => AudioBloc()),
-          BlocProvider<QuizBloc>(
-            create: (context) => QuizBloc(
-              quizRepository: context.read<QuizRepository>(),
-            ),
-          ),
           BlocProvider<VideoBloc>(create: (context) => VideoBloc()),
-          BlocProvider<SocialMediaBloc>(create: (context) => SocialMediaBloc()),
           BlocProvider(create: (context) => VideoPlayerBloc()),
           BlocProvider<LiveTvBloc>(
-            create: (context) => LiveTvBloc()..add(LiveTvRequested()),
+            create: (context) => LiveTvBloc(),
           ),
           BlocProvider<HighlightTvBloc>(
-            create: (context) => HighlightTvBloc()
-              ..add(FetchRecentHighlights())
-              ..add(const FetchCategories(1)),
+            create: (context) => HighlightTvBloc(),
           ),
-          BlocProvider<VolumeBloc>(create: (context) => VolumeBloc()),
-          BlocProvider<FixtureeventBloc>(create: (context) => FixtureeventBloc()),
+          BlocProvider<FixtureeventBloc>(
+              create: (context) => FixtureeventBloc()),
           BlocProvider<TopScorersBloc>(create: (context) => TopScorersBloc()),
-          BlocProvider<TopAssistorsBloc>(create: (context) => TopAssistorsBloc()),
+          BlocProvider<TopAssistorsBloc>(
+              create: (context) => TopAssistorsBloc()),
           BlocProvider<TopRedCardsBloc>(
             create: (context) => TopRedCardsBloc(),
-            lazy: false,
           ),
           BlocProvider<MatchesPageBloc>(create: (context) => MatchesPageBloc()),
           BlocProvider<KnockoutBloc>(create: (context) => KnockoutBloc()),
@@ -267,10 +508,6 @@ debugPrint('✅ Following Analytics Service initialized');
           BlocProvider<HighlightsPageBloc>(
             create: (context) => HighlightsPageBloc(),
           ),
-          BlocProvider<ProductBloc>(
-            create: (context) => ProductBloc(repository: ProductRepository()),
-          ),
-          BlocProvider<ScrollerBloc>(create: (context) => ScrollerBloc()),
           ChangeNotifierProvider<SongModelProvider>(
             create: (_) => SongModelProvider(),
           ),
@@ -278,8 +515,7 @@ debugPrint('✅ Following Analytics Service initialized');
             create: (context) => ThemeService(),
           ),
           BlocProvider<PodcastsBloc>(
-            create: (context) => PodcastsBloc()..add(PodcastsRequested()),
-            lazy: false,
+            create: (context) => PodcastsBloc(),
           ),
           BlocProvider<LineupsBloc>(create: (context) => LineupsBloc()),
           BlocProvider<FavouriteplayerBloc>(
@@ -318,135 +554,18 @@ debugPrint('✅ Following Analytics Service initialized');
           BlocProvider<FavouriteLeagueBloc>(
               create: (context) => FavouriteLeagueBloc()),
           BlocProvider<SeasonsPageBloc>(create: (context) => SeasonsPageBloc()),
-   BlocProvider<FollowingBloc>(
+          BlocProvider<FollowingBloc>(
             create: (context) => FollowingBloc(
               storageService: globalStorageService,
               analyticsService: globalAnalyticsService,
             ),
-          ),          BlocProvider<MatchBloc>(create: (context) => MatchBloc()),
-          BlocProvider<PaymentBloc>(create: (context) => PaymentBloc()),
+          ),
+          BlocProvider<MatchBloc>(create: (context) => MatchBloc()),
         ],
         child: MyApp(initLocation: initLocation),
       ),
     ),
   );
-}
-
-Future<void> syncFollowingDataAfterLogin() async {
-  try {
-    debugPrint('🔄 Starting initial sync from server...');
-    
-    final url = BaseUrl().url;
-    final accessToken = await getAccessToken();
-    
-    // Fetch followed matches
-    try {
-      final matchesResponse = await http.get(
-        Uri.parse('$url/api/user/favoriteMatches'),
-        headers: {
-          'accesstoken': accessToken,
-          'content-type': 'application/json',
-        },
-      );
-      
-      if (matchesResponse.statusCode == 200) {
-        final matchesData = jsonDecode(matchesResponse.body);
-        final matchIds = (matchesData['matches'] as List)
-            .map((m) => int.parse(m['id'].toString()))
-            .toList();
-        await globalStorageService.syncFromServer(matches: matchIds);
-        debugPrint('✅ Synced ${matchIds.length} matches');
-      }
-    } catch (e) {
-      debugPrint('⚠️ Could not sync matches: $e');
-    }
-    
-    // Fetch followed teams
-    try {
-      final teamsResponse = await http.get(
-        Uri.parse('$url/api/user/favoriteTeams'),
-        headers: {
-          'accesstoken': accessToken,
-          'content-type': 'application/json',
-        },
-      );
-      
-      if (teamsResponse.statusCode == 200) {
-        final teamsData = jsonDecode(teamsResponse.body);
-        final teamsList = teamsData['teams'] as List;
-        final teamIds = teamsList
-            .map((t) => int.parse(t['id'].toString()))
-            .toList();
-        await globalStorageService.syncFromServer(teams: teamIds);
-        for (final team in teamsList) {
-          final id = int.tryParse(team['id'].toString());
-          final name = team['name']?.toString();
-          if (id != null && name != null && name.isNotEmpty) {
-            await globalStorageService.setFollowedTeamName(id, name);
-          }
-        }
-        debugPrint('? Synced ${teamIds.length} teams');
-      }
-    } catch (e) {
-      debugPrint('⚠️ Could not sync teams: $e');
-    }
-    
-    // Fetch followed players
-    try {
-      final playersResponse = await http.get(
-        Uri.parse('$url/api/user/favoritePlayers'),
-        headers: {
-          'accesstoken': accessToken,
-          'content-type': 'application/json',
-        },
-      );
-      
-      if (playersResponse.statusCode == 200) {
-        final playersData = jsonDecode(playersResponse.body);
-        final playersList = playersData['players'] as List;
-        final playerIds = playersList
-            .map((p) => int.parse(p['id'].toString()))
-            .toList();
-        await globalStorageService.syncFromServer(players: playerIds);
-        for (final player in playersList) {
-          final id = int.tryParse(player['id'].toString());
-          final name = player['name']?.toString();
-          if (id != null && name != null && name.isNotEmpty) {
-            await globalStorageService.setFollowedPlayerName(id, name);
-          }
-        }
-        debugPrint('? Synced ${playerIds.length} players');
-      }
-    } catch (e) {
-      debugPrint('⚠️ Could not sync players: $e');
-    }
-    
-    // Fetch followed podcasts (using existing endpoint)
-    try {
-      final podcastsResponse = await http.get(
-        Uri.parse('$url/api/user/FavoritePodcasts'),
-        headers: {
-          'accesstoken': accessToken,
-          'content-type': 'application/json',
-        },
-      );
-      
-      if (podcastsResponse.statusCode == 200) {
-        final podcastsData = jsonDecode(podcastsResponse.body);
-        final podcastIds = (podcastsData['favoritePodcasts'] as List)
-            .map((p) => p['id'].toString())
-            .toList();
-        await globalStorageService.syncFromServer(podcasts: podcastIds);
-        debugPrint('✅ Synced ${podcastIds.length} podcasts');
-      }
-    } catch (e) {
-      debugPrint('⚠️ Could not sync podcasts: $e');
-    }
-    
-    debugPrint('✅ Initial sync completed successfully');
-  } catch (e) {
-    debugPrint('❌ Error during initial sync: $e');
-  }
 }
 
 class MyApp extends StatefulWidget {
@@ -460,28 +579,67 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   late AppLinks _appLinks;
   StreamSubscription<Uri>? _linkSubscription;
+  bool _didScheduleAudioWarmup = false;
+  bool _didScheduleLocalizationWarmup = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _loadLanguage();
-    _initDeepLinks();
-
-    // ✅ NEW: Check for initial notification action from awesome_notifications
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      FCMService.flushPendingDeepLinkNavigation();
+      _initDeepLinks();
+      _scheduleDeferredAudioWarmup();
+      _scheduleDeferredLocalizationWarmup();
       _checkInitialNotification();
     });
   }
 
-  // ✅ NEW: Check for initial notification from awesome_notifications
+  void _scheduleDeferredAudioWarmup() {
+    if (widget.initLocation == '/videointro') {
+      return;
+    }
+
+    if (_didScheduleAudioWarmup) return;
+    _didScheduleAudioWarmup = true;
+
+    final warmupDelay = widget.initLocation == '/entrypage'
+        ? const Duration(milliseconds: 3200)
+        : const Duration(milliseconds: 800);
+
+    Future.delayed(warmupDelay, () {
+      unawaited(
+        ensureAudioHandlerReady().catchError((error, stackTrace) {
+          debugPrint('Background audio handler initialization failed: $error');
+        }),
+      );
+    });
+  }
+
+  void _scheduleDeferredLocalizationWarmup() {
+    if (widget.initLocation == '/videointro') {
+      return;
+    }
+
+    if (_didScheduleLocalizationWarmup) return;
+    _didScheduleLocalizationWarmup = true;
+
+    Future.delayed(const Duration(milliseconds: 2200), () {
+      unawaited(
+        preloadLocalizationsPrioritized(
+          primaryLanguageCode: localLanguageNotifier.value,
+        ).catchError((error, stackTrace) {
+          debugPrint('Background localization preload failed: $error');
+        }),
+      );
+    });
+  }
+
+  // âœ… NEW: Check for initial notification from awesome_notifications
   Future<void> _checkInitialNotification() async {
-    // Wait a bit for the app to fully initialize
-    await Future.delayed(const Duration(milliseconds: 1500));
-    
     if (mounted) {
-      debugPrint('🔍 Checking for initial notification action...');
       await FCMService.checkInitialNotificationAction();
+      await FCMService().checkInitialFcmLaunchMessage();
     }
   }
 
@@ -494,6 +652,13 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    unawaited(
+      globalAnalyticsService
+          .trackAppLifecycle(state: state)
+          .catchError((error, stackTrace) {
+        debugPrint('Lifecycle analytics tracking failed: $error');
+      }),
+    );
     if (state == AppLifecycleState.resumed) {
       _updateSystemUIAfterBuild();
     }
@@ -505,15 +670,17 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     // Handle links when app is already running
     _linkSubscription = _appLinks.uriLinkStream.listen(
       (Uri uri) {
-        debugPrint('═══════════════════════════════════════════════════════════');
-        debugPrint('🔗 DEEP LINK RECEIVED (App Running)');
+        debugPrint(
+            'â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
+        debugPrint('ðŸ”— DEEP LINK RECEIVED (App Running)');
         debugPrint('   URI: $uri');
-        debugPrint('═══════════════════════════════════════════════════════════');
-        
+        debugPrint(
+            'â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
+
         _handleDeepLink(uri);
       },
       onError: (Object err) {
-        debugPrint('❌ Deep link stream error: $err');
+        debugPrint('âŒ Deep link stream error: $err');
       },
     );
 
@@ -521,10 +688,12 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     try {
       final initialUri = await _appLinks.getInitialLink();
       if (initialUri != null) {
-        debugPrint('═══════════════════════════════════════════════════════════');
-        debugPrint('🚀 INITIAL DEEP LINK DETECTED (Cold Start)');
+        debugPrint(
+            'â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
+        debugPrint('ðŸš€ INITIAL DEEP LINK DETECTED (Cold Start)');
         debugPrint('   URI: $initialUri');
-        debugPrint('═══════════════════════════════════════════════════════════');
+        debugPrint(
+            'â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
 
         // Process after a delay
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -536,7 +705,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         });
       }
     } catch (e) {
-      debugPrint('❌ Failed to get initial deep link: $e');
+      debugPrint('âŒ Failed to get initial deep link: $e');
     }
   }
 
@@ -546,7 +715,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       final queryParams = uri.queryParameters;
       final pathSegments = uri.pathSegments;
 
-      debugPrint('🧭 Processing deep link');
+      debugPrint('ðŸ§­ Processing deep link');
       debugPrint('   Host: $hostLower');
       debugPrint('   Path segments: $pathSegments');
       debugPrint('   Query: $queryParams');
@@ -554,48 +723,39 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       if (hostLower == 'matchdetail') {
         final fixtureId = queryParams['fixtureId']?.trim();
         if (fixtureId != null && fixtureId.isNotEmpty) {
-          debugPrint('→ Navigating to match detail: fixtureId=$fixtureId');
+          debugPrint('â†’ Navigating to match detail: fixtureId=$fixtureId');
           globalRouter.go('/matchDetail?fixtureId=$fixtureId');
           return;
         }
-      } 
-      
-      else if (hostLower == 'newsdetail') {
+      } else if (hostLower == 'newsdetail') {
         final newsId = pathSegments.isNotEmpty ? pathSegments.last : null;
         final lang = queryParams['lang']?.trim();
 
         if (newsId != null && newsId.isNotEmpty) {
           if (lang != null && lang.isNotEmpty) {
             localLanguageNotifier.value = lang;
-            debugPrint('→ Language set to: $lang');
+            debugPrint('â†’ Language set to: $lang');
           }
-          debugPrint('→ Navigating to news detail: newsId=$newsId');
+          debugPrint('â†’ Navigating to news detail: newsId=$newsId');
           globalRouter.go('/newsDetail/$newsId');
           return;
         }
-      } 
-      
-      else if (hostLower == 'podcast') {
+      } else if (hostLower == 'podcast') {
         final podcastId = pathSegments.isNotEmpty ? pathSegments.last : null;
         if (podcastId != null && podcastId.isNotEmpty) {
-          debugPrint('→ Navigating to podcast: id=$podcastId');
+          debugPrint('â†’ Navigating to podcast: id=$podcastId');
           globalRouter.go('/podcast/$podcastId', extra: queryParams);
           return;
         }
       }
 
-      debugPrint('⚠️ Unknown deep link format → fallback to home');
-      globalRouter.go('/home');
+      debugPrint('âš ï¸ Unknown deep link format â†’ ignoring');
+      return;
     } catch (e, stack) {
-      debugPrint('❌ Deep link handling failed: $e');
+      debugPrint('âŒ Deep link handling failed: $e');
       debugPrint('Stack: $stack');
-      globalRouter.go('/home');
+      return;
     }
-  }
-
-  Future<void> _loadLanguage() async {
-    var box = await Hive.openBox('settings');
-    localLanguageNotifier.value = box.get('language', defaultValue: 'am');
   }
 
   void _updateSystemUIAfterBuild() {
@@ -660,5 +820,3 @@ class MyHttpOverrides extends HttpOverrides {
     return client;
   }
 }
-
- 

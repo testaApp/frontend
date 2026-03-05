@@ -10,23 +10,23 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:permission_handler/permission_handler.dart' as AppSettings;
 
-import 'application/persistent_player/persistent_player_bloc.dart';
-import 'application/persistent_player/persistent_player_state.dart';
+import 'package:blogapp/state/application/persistent_player/persistent_player_bloc.dart';
+import 'package:blogapp/state/application/persistent_player/persistent_player_state.dart';
 import 'localization/demo_localization.dart';
 import 'main.dart';
-import 'pages/appbar_pages/enadamt/enadamt_new.dart';
-import 'pages/appbar_pages/enadamt/live_audio_player.dart';
-import 'pages/appbar_pages/news/foryou/foryou.dart';
-import 'pages/appbar_pages/news/main_news/news_feed.dart';
-import 'pages/bottom_navigation/matches/matches.dart';
-import 'pages/bottom_navigation/standing/standings_page.dart';
-import 'pages/bottom_navigation/Tv/tv.dart';
-import 'pages/constants/colors.dart';
-import 'pages/constants/text_utils.dart';
-import 'pages/navigation/navigation_draw.dart';
+import 'package:blogapp/features/enadamt/pages/enadamt/enadamt_new.dart';
+import 'package:blogapp/features/enadamt/pages/enadamt/live_audio_player.dart';
+import 'package:blogapp/features/news/pages/news/foryou/foryou.dart';
+import 'package:blogapp/features/news/pages/news/main_news/news_feed.dart';
+import 'package:blogapp/features/matches/pages/matches/matches.dart';
+import 'package:blogapp/features/standing/pages/standing/standings_page.dart';
+import 'package:blogapp/features/tv/pages/Tv/tv.dart';
+import 'package:blogapp/shared/constants/colors.dart';
+import 'package:blogapp/shared/constants/text_utils.dart';
+import 'package:blogapp/features/navigation/pages/navigation_draw.dart';
 import 'presentation/userPreferencesPage.dart';
 
-import 'pages/appbar_pages/custom_app_bar.dart';
+import 'package:blogapp/shared/widgets/custom_app_bar.dart';
 import 'services/fcm_service.dart';
 
 class NewsHomeScreen extends StatefulWidget {
@@ -512,20 +512,15 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildCurrentScreen() {
     switch (currentTab) {
       case 0:
-        newsScreen ??= const NewsHomeScreen();
-        return newsScreen!;
+        return const NewsHomeScreen();
       case 1:
-        standingPage ??= const StandingPage();
-        return standingPage!;
+        return const StandingPage();
       case 2:
-        matchesPage ??= const MatchesPage();
-        return matchesPage!;
+        return const MatchesPage();
       case 3:
-        userPreferencesPage ??= const UserPreferencesPage();
-        return userPreferencesPage!;
+        return const UserPreferencesPage();
       case 4:
-        highlightsPage ??= const Tv();
-        return highlightsPage!;
+        return const Tv();
       default:
         return const SizedBox.shrink();
     }

@@ -3,7 +3,7 @@
 import '../../components/timeFormatter.dart';
 import '../../functions/date_conversion.dart';
 import '../../main.dart';
-import '../../repository/matches_repository.dart';
+import 'package:blogapp/data/repositories/matches_repository.dart';
 import '../teamName.dart';
 import 'team.dart';
 

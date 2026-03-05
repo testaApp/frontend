@@ -57,13 +57,34 @@ class Matches_model {
     this.extraTime,
   });
 
+  static int _parseIntValue(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+
+    final raw = value?.toString().trim() ?? '';
+    if (raw.isEmpty) return 0;
+
+    final parsedInt = int.tryParse(raw);
+    if (parsedInt != null) return parsedInt;
+
+    final parsedNum = num.tryParse(raw);
+    if (parsedNum != null) return parsedNum.toInt();
+
+    final match = RegExp(r'\d+').firstMatch(raw);
+    if (match != null) {
+      return int.tryParse(match.group(0)!) ?? 0;
+    }
+
+    return 0;
+  }
+
   factory Matches_model.fromJson(json) => Matches_model(
         id: json['id'] ?? 0,
         date: json['date'] ?? '',
         venue: json['venue']['name'] ?? '',
         status: json['status']['short'] ?? '',
         league: json['league']['name'] ?? '',
-        leagueId: json['league']['id'], // ADD THIS LINE
+        leagueId: _parseIntValue(json['league']?['id']), // ADD THIS LINE
         logo: json['league']['logo'] ?? '',
         scoreHome: json['goals']['home'] ?? 0,
         scoreAway: json['goals']['away'] ?? 0,
@@ -82,8 +103,16 @@ class Matches_model {
         youtubeHighlightVtitle: json['youtubeHighlight']?['VideoTitle'] ?? '',
         youtubeHighlightVid: json['youtubeHighlight']?['VideoId'] ?? '',
         youtubeHighlightThumbnail: json['youtubeHighlight']?['Thumbnail'] ?? '',
-        hometeamId: json['homeTeam']['id'] ?? 0,
-        awayteamId: json['awayTeam']['id'] ?? 0,
+        hometeamId: _parseIntValue(
+          json['homeTeam']?['id'] ??
+              json['homeTeam']?['_id'] ??
+              json['homeTeamId'],
+        ),
+        awayteamId: _parseIntValue(
+          json['awayTeam']?['id'] ??
+              json['awayTeam']?['_id'] ??
+              json['awayTeamId'],
+        ),
         extraTime: json['extraTime'],
       );
 }

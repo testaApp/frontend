@@ -1,6 +1,6 @@
 import 'package:dartz/dartz.dart';
 
-import '../../Infrastructure/productDataProvider.dart';
+import 'package:blogapp/data/providers/productDataProvider.dart';
 import '../core/failure.dart';
 import 'product.dart';
 

@@ -6,5 +6,7 @@ GetIt getIt = GetIt.instance;
 
 Future<void> setupServiceLocator() async {
   // Register page manager
-  getIt.registerLazySingleton<PageManager>(() => PageManager());
+  if (!getIt.isRegistered<PageManager>()) {
+    getIt.registerLazySingleton<PageManager>(() => PageManager());
+  }
 }

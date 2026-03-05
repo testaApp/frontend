@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import 'pages/constants/colors.dart';
-import 'pages/constants/text_utils.dart';
+import 'package:blogapp/shared/constants/colors.dart';
+import 'package:blogapp/shared/constants/text_utils.dart';
 
 ThemeData darkMode = ThemeData(
   brightness: Brightness.dark,

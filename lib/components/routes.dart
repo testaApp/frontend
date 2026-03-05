@@ -1,57 +1,58 @@
 import 'dart:convert';
 
 import 'package:firebase_analytics/firebase_analytics.dart';
-import 'package:firebase_analytics/observer.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
-import '../bloc/mirchaweche/teams/team_profile_standing/team_profile_standing_bloc.dart';
-import '../bloc/mirchaweche/teams/team_profile_standing/team_profile_standing_event.dart';
-import '../bloc/mirchaweche/teams/team_profile_statistics/team_profile_statistics_bloc.dart';
-import '../bloc/mirchaweche/teams/team_profile_statistics/team_profile_statistics_event.dart';
-import '../bloc/news/news_bloc.dart';
-import '../bloc/news/news_event.dart';
+import 'package:blogapp/state/bloc/mirchaweche/teams/team_profile_standing/team_profile_standing_bloc.dart';
+import 'package:blogapp/state/bloc/mirchaweche/teams/team_profile_standing/team_profile_standing_event.dart';
+import 'package:blogapp/state/bloc/mirchaweche/teams/team_profile_statistics/team_profile_statistics_bloc.dart';
+import 'package:blogapp/state/bloc/mirchaweche/teams/team_profile_statistics/team_profile_statistics_event.dart';
+import 'package:blogapp/state/bloc/news/news_bloc.dart';
+import 'package:blogapp/state/bloc/news/news_event.dart';
 import '../domain/player/playerModel.dart';
 import '../domain/player/playerName.dart';
 import '../main.dart';
-import '../pages/appbar_pages/enadamt/enadamt_new.dart';
-import '../pages/appbar_pages/enadamt/program_detail_page.dart';
-import '../pages/bottom_navigation/matches/matchDetail.dart';
-import '../pages/bottom_navigation/matches/matches.dart';
-import '../models/news.dart';
+import '../services/analytics_service.dart';
+import 'package:blogapp/features/enadamt/pages/enadamt/enadamt_new.dart';
+import 'package:blogapp/features/enadamt/pages/enadamt/program_detail_page.dart';
+import 'package:blogapp/features/matches/pages/matches/matchDetail.dart';
+import 'package:blogapp/features/matches/pages/matches/matches.dart';
 import '../models/teamName.dart';
 import '../Homepage.dart';
-import '../pages/navigation/notifications_page.dart';
-import '../pages/appbar_pages/news/main_news/news_detail.dart';
-import '../pages/appbar_pages/news/transfer_news/top_transfer/transfer/transfer_bloc.dart';
-import '../pages/appbar_pages/news/transfer_news/top_transfer/transfer/transfer_event.dart';
-import '../pages/appbar_pages/news/transfer_news/top_transfer/transferpage.dart';
-import '../pages/bottom_navigation/favourites_page/favourites_page/player/playerProfilePage.dart';
-import '../pages/bottom_navigation/favourites_page/team/team_profile_page.dart';
-import '../pages/entry_pages/choos_fav_players_list.dart';
-import '../pages/entry_pages/entrypage.dart';
-import '../pages/entry_pages/introduction_page.dart';
-import '../pages/entry_pages/language.dart';
-import '../pages/entry_pages/top_of_teamslist_choose.dart';
-import '../pages/entry_pages/videointro.dart';
-import '../pages/login/login.dart';
-import '../pages/login/passcode.dart';
-import '../pages/login/upload_profile_pic_page.dart';
-import '../pages/navigation/settings_page.dart';
-import '../pages/payment/payment_page.dart';
-import '../util/auth/tokens.dart';
+import 'package:blogapp/features/navigation/pages/notifications_page.dart';
+import 'package:blogapp/features/news/pages/news/main_news/news_detail.dart';
+import 'package:blogapp/features/news/pages/news/transfer_news/top_transfer/transfer/transfer_bloc.dart';
+import 'package:blogapp/features/news/pages/news/transfer_news/top_transfer/transfer/transfer_event.dart';
+import 'package:blogapp/features/news/pages/news/transfer_news/top_transfer/transferpage.dart';
+import 'package:blogapp/features/favourites/pages/favourites_page/favourites_page/player/playerProfilePage.dart';
+import 'package:blogapp/features/favourites/pages/favourites_page/team/team_profile_page.dart';
+import 'package:blogapp/features/onboarding/pages/choos_fav_players_list.dart';
+import 'package:blogapp/features/onboarding/pages/entrypage.dart';
+import 'package:blogapp/features/onboarding/pages/introduction_page.dart';
+import 'package:blogapp/features/onboarding/pages/language.dart';
+import 'package:blogapp/features/onboarding/pages/top_of_teamslist_choose.dart';
+import 'package:blogapp/features/onboarding/pages/videointro.dart';
+import 'package:blogapp/features/auth/pages/login.dart';
+import 'package:blogapp/features/auth/pages/passcode.dart';
+import 'package:blogapp/features/auth/pages/upload_profile_pic_page.dart';
+import 'package:blogapp/features/navigation/pages/settings_page.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'routenames.dart';
 
 Future<bool> checkLoggedIn() async {
-  final token = await getRefreshToken();
-  return token != null;
+  final user = FirebaseAuth.instance.currentUser;
+  return user != null && !user.isAnonymous;
 }
 
 GoRouter createRoute(String initialLocation) {
   return GoRouter(
-    observers: [FirebaseAnalyticsObserver(analytics: FirebaseAnalytics.instance)],
+    observers: [
+      FirebaseAnalyticsObserver(analytics: FirebaseAnalytics.instance),
+      AppRouteAnalyticsObserver(analytics: globalAnalyticsService),
+    ],
     initialLocation: initialLocation,
     navigatorKey: GlobalKey<NavigatorState>(debugLabel: 'rootNavigator'),
     debugLogDiagnostics: true,
@@ -98,7 +99,8 @@ GoRouter createRoute(String initialLocation) {
           }
 
           // Get user's preferred language from extra data or use current
-          final userLanguage = extra?['language']?.toString() ?? localLanguageNotifier.value;
+          final userLanguage =
+              extra?['language']?.toString() ?? localLanguageNotifier.value;
 
           debugPrint('📻 Opening podcast with language: $userLanguage');
           debugPrint('   ID: $id');
@@ -119,7 +121,6 @@ GoRouter createRoute(String initialLocation) {
           );
         },
       ),
-
       _createGoRoute(
         path: '/transfer',
         name: RouteNames.transfer,
@@ -144,12 +145,12 @@ GoRouter createRoute(String initialLocation) {
         name: RouteNames.settings,
         builder: (context, state) => const SettingsPage(),
       ),
-         _createGoRoute(
+      _createGoRoute(
         path: '/enadamt',
         name: RouteNames.enadamt,
         builder: (context, state) => const EnadamtNew(),
       ),
-          _createGoRoute(
+      _createGoRoute(
         path: '/matchespage',
         name: RouteNames.matchespage,
         builder: (context, state) => const MatchesPage(),
@@ -263,22 +264,21 @@ GoRouter createRoute(String initialLocation) {
           return IntroductionPage(selectedLanguage: selectedLanguage);
         },
       ),
-_createGoRoute(
-  path: '/newsDetail/:id',
-  name: RouteNames.newsDetail,
-  builder: (context, state) {
-    final id = state.pathParameters['id'];
+      _createGoRoute(
+        path: '/newsDetail/:id',
+        name: RouteNames.newsDetail,
+        builder: (context, state) {
+          final id = state.pathParameters['id'];
 
-    // Handle language from query parameters (deep link)
-    final lang = state.uri.queryParameters['lang'];
-    if (lang != null && lang.isNotEmpty) {
-      localLanguageNotifier.value = lang;
-    }
+          // Handle language from query parameters (deep link)
+          final lang = state.uri.queryParameters['lang'];
+          if (lang != null && lang.isNotEmpty) {
+            localLanguageNotifier.value = lang;
+          }
 
-    return NewsDetailPage(id: id);
-  },
-),
-
+          return NewsDetailPage(id: id);
+        },
+      ),
       _createGoRoute(
         path: '/notificationSettings',
         name: RouteNames.notificationSettings,
@@ -288,20 +288,22 @@ _createGoRoute(
         path: '/matchDetail',
         name: RouteNames.matchDetail,
         builder: (context, state) {
-          final fixtureIdString = state.uri.queryParameters['fixtureId'];
-          final fixtureId = int.tryParse(fixtureIdString ?? '');
+          final fixtureIdString = state.uri.queryParameters['fixtureId'] ?? '';
+          final normalizedFixtureId = fixtureIdString.trim();
+          final directFixtureId = int.tryParse(normalizedFixtureId) ??
+              double.tryParse(normalizedFixtureId)?.toInt();
+          final regexFixtureId = int.tryParse(
+            RegExp(r'\d+').firstMatch(normalizedFixtureId)?.group(0) ?? '',
+          );
+          final fixtureId = directFixtureId ?? regexFixtureId;
 
           if (fixtureId == null) {
-            return const Scaffold(body: Center(child: Text("Invalid Match ID")));
+            return const Scaffold(
+                body: Center(child: Text("Invalid Match ID")));
           }
 
           return MatchDetailsPage(fixtureId: fixtureId);
         },
-      ),
-      _createGoRoute(
-        path: '/payment',
-        name: RouteNames.payment,
-        builder: (context, state) => const PaymentPage(title: ''),
       ),
       _createGoRoute(
         path: '/upload-profile-pic',

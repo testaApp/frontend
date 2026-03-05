@@ -1,4 +1,4 @@
-import '../localization/demo_localization.dart';
+import 'package:blogapp/localization/demo_localization.dart';
 
 String translateType(String? eventDetail) {
   eventDetail = eventDetail?.toLowerCase();
